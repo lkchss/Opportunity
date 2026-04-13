@@ -1,4 +1,4 @@
-# Oportunity
+# Opportunity
 
 This is the repository for an app designed to help people find their next steps in life--whether it be graduate school, potential jobs, gap year programs, etc. 
 
