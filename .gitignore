@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.Python
+env/
+venv/
+.venv/
+*.egg-info/
+
+# Environment variables (never commit secrets)
+.env
+.env.local
+
+# Streamlit
+.streamlit/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
