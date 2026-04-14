@@ -1,7 +1,8 @@
 import streamlit as st
 from app.data_loader import load_law_schools, DataValidationError
 from app.matcher import rank_schools
-from app.llm_client import generate_narrative, RateLimitError, LLMProviderError
+# LLM narratives disabled for v1 (will add in v2)
+# from app.llm_client import generate_narrative, RateLimitError, LLMProviderError
 
 
 @st.cache_data
@@ -107,34 +108,9 @@ if submitted:
             st.warning("No schools matched your criteria. Try adjusting your preferences.")
             st.stop()
 
-        # Generate narratives for top 10
-        st.info("✍️ Writing personalized recommendations...")
-        narratives_available = True
+        # LLM narratives disabled for v1 (will add in v2)
+        narratives_available = False
         narratives_dict = {}
-
-        try:
-            schools_for_narrative = ranked[:10]
-            narrative_results = generate_narrative(profile, schools_for_narrative, top_k=10)
-            # Convert list to dict keyed by school id
-            narratives_dict = {s["id"]: s for s in narrative_results}
-        except RateLimitError:
-            st.warning(
-                "⚠️ LLM service is rate limited. Showing algorithm rankings without narratives. "
-                "Please try again in a few moments."
-            )
-            narratives_available = False
-        except LLMProviderError as e:
-            st.warning(
-                f"⚠️ Could not generate narratives: {e}. "
-                "Showing algorithm rankings instead."
-            )
-            narratives_available = False
-        except Exception as e:
-            st.warning(
-                f"⚠️ Unexpected error generating narratives: {e}. "
-                "Showing algorithm rankings instead."
-            )
-            narratives_available = False
 
         # Display school cards
         st.success("✓ Done! Here are your top 10 matches:")
