@@ -169,12 +169,17 @@ if submitted:
             stat_cols[0].metric("LSAT Median", school["lsat_50"])
             stat_cols[1].metric("GPA Median", f"{school['gpa_50']:.2f}")
 
-            # User's percentile
+            # User's percentile (maps 25th-75th percentile range to 25-75)
             if profile["lsat"]:
-                lsat_pct = min(
-                    max((profile["lsat"] - school["lsat_25"]) / (school["lsat_75"] - school["lsat_25"]) * 100, 0),
-                    100,
-                )
+                if profile["lsat"] < school["lsat_25"]:
+                    lsat_pct = 10  # Below 25th
+                elif profile["lsat"] >= school["lsat_75"]:
+                    # Above 75th: estimate based on how far above
+                    overage = (profile["lsat"] - school["lsat_75"]) / (school["lsat_75"] - school["lsat_50"]) * 10
+                    lsat_pct = min(75 + overage, 99)
+                else:
+                    # Between 25th and 75th
+                    lsat_pct = 25 + ((profile["lsat"] - school["lsat_25"]) / (school["lsat_75"] - school["lsat_25"])) * 50
                 stat_cols[2].metric("Your LSAT %ile", f"{lsat_pct:.0f}%")
             else:
                 stat_cols[2].metric("Your LSAT %ile", "N/A")
