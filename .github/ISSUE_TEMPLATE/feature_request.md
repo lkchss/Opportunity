@@ -1,6 +1,6 @@
 ---
 name: Feature Request
-about: Suggest a new feature for Oportunity
+about: Suggest a new feature for Opportunity
 title: '[FEATURE] '
 labels: enhancement
 assignees: ''
