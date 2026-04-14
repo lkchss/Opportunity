@@ -39,16 +39,20 @@ def _compute_admissibility_score(
     """
     Compute admissibility score and tier based on LSAT/GPA vs. school medians.
 
-    Uses sigmoid curves centered on school medians:
-    - High LSAT/GPA → score near 100 (safety)
-    - Median LSAT/GPA → score around 50 (target)
-    - Low LSAT/GPA → score near 0 (hard reach)
+    LSAT is weighted 70% (law schools care more about LSAT for rankings).
+    GPA is weighted 30%.
 
-    Tier assignment:
-    - Safety: both metrics at/above 75th percentile
-    - Target: both metrics at/above median
-    - Reach: both metrics at/above 25th percentile
-    - Hard Reach: below 25th percentile on either
+    Percentile-based scoring:
+    - Above 75th percentile → 85-100
+    - At median (50th) → 60-75
+    - At 25th percentile → 40-55
+    - Below 25th → 0-40
+
+    Tier assignment (LSAT-weighted):
+    - Safety: LSAT >= 75th OR (LSAT >= 50th AND GPA >= 75th)
+    - Target: LSAT >= 50th OR (LSAT >= 25th AND GPA >= 50th)
+    - Reach: LSAT >= 25th
+    - Hard Reach: LSAT < 25th
 
     Args:
         lsat: User's LSAT score (or None if not taken)
@@ -58,34 +62,58 @@ def _compute_admissibility_score(
     Returns:
         (admissibility_score, tier_label) tuple
     """
-    # If no LSAT, lower admissibility significantly
+    # LSAT scoring (percentile-based, more granular)
     if lsat is None:
-        lsat_score = 30
-        lsat_factor = 0.7  # Weight LSAT as 70% if missing
+        lsat_score = 30  # Conservative estimate
+    elif lsat >= school["lsat_75"]:
+        # Above 75th: map to 85-100 based on how far above
+        overage = (lsat - school["lsat_75"]) / max(school["lsat_75"] - school["lsat_50"], 1)
+        lsat_score = min(85 + overage * 15, 100)
+    elif lsat >= school["lsat_50"]:
+        # Between 50th and 75th: map to 60-85
+        progress = (lsat - school["lsat_50"]) / max(school["lsat_75"] - school["lsat_50"], 1)
+        lsat_score = 60 + progress * 25
+    elif lsat >= school["lsat_25"]:
+        # Between 25th and 50th: map to 40-60
+        progress = (lsat - school["lsat_25"]) / max(school["lsat_50"] - school["lsat_25"], 1)
+        lsat_score = 40 + progress * 20
     else:
-        # Sigmoid centered on median, steeper slope
-        lsat_score = _sigmoid(lsat, midpoint=school["lsat_50"], scale=0.15) * 100
-        lsat_factor = 1.0
+        # Below 25th: map to 0-40
+        if lsat < 120:
+            lsat_score = 0
+        else:
+            deficit = (school["lsat_25"] - lsat) / max(school["lsat_25"] - 120, 1)
+            lsat_score = max(40 - deficit * 40, 0)
 
-    # GPA scoring
-    gpa_score = _sigmoid(gpa, midpoint=school["gpa_50"], scale=2.0) * 100
+    # GPA scoring (similar approach)
+    if gpa >= school["gpa_75"]:
+        overage = (gpa - school["gpa_75"]) / max(school["gpa_75"] - school["gpa_50"], 0.01)
+        gpa_score = min(85 + overage * 15, 100)
+    elif gpa >= school["gpa_50"]:
+        progress = (gpa - school["gpa_50"]) / max(school["gpa_75"] - school["gpa_50"], 0.01)
+        gpa_score = 60 + progress * 25
+    elif gpa >= school["gpa_25"]:
+        progress = (gpa - school["gpa_25"]) / max(school["gpa_50"] - school["gpa_25"], 0.01)
+        gpa_score = 40 + progress * 20
+    else:
+        deficit = (school["gpa_25"] - gpa) / max(school["gpa_25"] - 2.0, 0.01)
+        gpa_score = max(40 - deficit * 40, 0)
 
-    # Weighted average
-    composite = (lsat_score * lsat_factor + gpa_score) / (lsat_factor + 1)
+    # Weighted composite: LSAT 70%, GPA 30%
+    composite = lsat_score * 0.70 + gpa_score * 0.30
 
-    # Determine tier
-    lsat_ok = lsat is not None and lsat >= school["lsat_50"]
-    gpa_ok = gpa >= school["gpa_50"]
-    lsat_strong = lsat is not None and lsat >= school["lsat_75"]
-    gpa_strong = gpa >= school["gpa_75"]
-    lsat_weak = lsat is None or lsat < school["lsat_25"]
-    gpa_weak = gpa < school["gpa_25"]
+    # Determine tier (LSAT-weighted logic)
+    lsat_at_75 = lsat is not None and lsat >= school["lsat_75"]
+    lsat_at_50 = lsat is not None and lsat >= school["lsat_50"]
+    lsat_at_25 = lsat is not None and lsat >= school["lsat_25"]
+    gpa_at_75 = gpa >= school["gpa_75"]
+    gpa_at_50 = gpa >= school["gpa_50"]
 
-    if lsat_strong and gpa_strong:
+    if lsat_at_75 or (lsat_at_50 and gpa_at_75):
         tier = "safety"
-    elif lsat_ok and gpa_ok:
+    elif lsat_at_50 or (lsat_at_25 and gpa_at_50):
         tier = "target"
-    elif (lsat is not None and lsat >= school["lsat_25"]) and gpa >= school["gpa_25"]:
+    elif lsat_at_25:
         tier = "reach"
     else:
         tier = "hard reach"
@@ -102,6 +130,9 @@ def _compute_goal_fit_score(profile: dict, school: dict) -> float:
     - Federal Clerkship → federal_clerkship_pct
     - Public Interest → public_interest_pct
     - Government → government_pct
+    - Academia → composite of clerkship_pct + biglaw_pct (proxies for prestige/placement)
+    - In-house → biglaw_pct * 0.8 (BigLaw is common path to in-house)
+    - Solo/Small Firm → inverse of biglaw_pct (regional schools often better for this)
     - Unsure → balanced average of all outcomes
 
     Args:
@@ -121,6 +152,21 @@ def _compute_goal_fit_score(profile: dict, school: dict) -> float:
         return school.get("public_interest_pct", 0) * 100
     elif "government" in goal:
         return school.get("government_pct", 0) * 100
+    elif "academia" in goal:
+        # Academia requires elite placement: weight clerkships + biglaw as proxies
+        clerkship_score = school.get("federal_clerkship_pct", 0) * 100
+        biglaw_score = school.get("biglaw_pct", 0) * 100
+        # Clerkships are stronger signal for academia, weight 60/40
+        return clerkship_score * 0.6 + biglaw_score * 0.4
+    elif "in-house" in goal or "inhouse" in goal or "in house" in goal:
+        # In-house often recruited from BigLaw, so use biglaw_pct as proxy
+        return school.get("biglaw_pct", 0) * 100 * 0.8
+    elif "solo" in goal or "small firm" in goal:
+        # Solo/small firm practice: regional schools often better
+        # Use inverse of biglaw_pct as rough proxy (not perfect, but reasonable)
+        biglaw_pct = school.get("biglaw_pct", 0)
+        # Map 0% biglaw → 70%, 50% biglaw → 35%, 100% biglaw → 0%
+        return max(70 - (biglaw_pct * 70), 0)
     else:  # Unsure or other: balanced average
         outcomes = [
             school.get("biglaw_pct", 0),
@@ -201,6 +247,46 @@ def _compute_scholarship_likelihood(profile: dict, school: dict, lsat: Optional[
 
     scholarship_score = (splitter_boost * 0.4 + school_generosity * 0.3 + percentile_fit + median_scholarship_bonus)
     return min(scholarship_score, 100)
+
+
+def _compute_school_quality_score(school: dict) -> float:
+    """
+    Compute school quality/prestige score based on objective metrics.
+
+    Uses three indicators:
+    - Median LSAT (higher is better) - 50% weight
+    - Bar pass rate (higher is better) - 30% weight
+    - Selectivity via acceptance rate (lower is better) - 20% weight
+
+    This prevents low-tier schools from ranking above elite schools
+    just because a candidate is overqualified.
+
+    Args:
+        school: School data dict
+
+    Returns:
+        Score 0-100
+    """
+    # LSAT median score (map 140-175 to 0-100)
+    lsat_median = school.get("lsat_50", 150)
+    lsat_score = min(max((lsat_median - 140) / (175 - 140) * 100, 0), 100)
+
+    # Bar pass rate score (already 0-1, convert to 0-100)
+    bar_pass_score = school.get("bar_pass_rate_first_time", 0.75) * 100
+
+    # Selectivity score (lower acceptance rate is better)
+    # Map 0.05 (5%) → 100, 0.50 (50%) → 0
+    acceptance_rate = school.get("acceptance_rate", 0.30)
+    selectivity_score = max(100 - (acceptance_rate * 200), 0)
+
+    # Weighted composite
+    quality_score = (
+        lsat_score * 0.50
+        + bar_pass_score * 0.30
+        + selectivity_score * 0.20
+    )
+
+    return min(quality_score, 100)
 
 
 def _compute_geographic_fit(profile: dict, school: dict) -> float:
@@ -287,25 +373,31 @@ def rank_schools(
 
     Scoring logic:
 
-    1. **Admissibility (30%)**: LSAT/GPA fit using sigmoid curves
+    1. **Admissibility (30%)**: LSAT/GPA fit using percentile-based scoring
        - Compares user stats to school medians and percentiles
+       - LSAT weighted 70%, GPA weighted 30%
        - Assigns tier: safety, target, reach, hard reach
 
-    2. **Goal Fit (30%)**: Employment outcome alignment
+    2. **Goal Fit (25%)**: Employment outcome alignment
        - Matches primary career goal to relevant outcome percentage
        - E.g., BigLaw goal → weighted by school's biglaw_pct
+       - Academia goal → composite of clerkship + biglaw (prestige proxies)
 
-    3. **Practice Area Fit (20%)**: Interest-strength overlap
+    3. **School Quality (10%)**: Prestige/selectivity indicator
+       - Based on median LSAT, bar pass rate, and acceptance rate
+       - Prevents low-tier schools from ranking above elite schools
+
+    4. **Practice Area Fit (15%)**: Interest-strength overlap
        - Counts matching practice areas between user interests and school strengths
 
-    4. **Scholarship Likelihood (10%)**: Merit aid probability
+    5. **Scholarship Likelihood (10%)**: Merit aid probability
        - Splitters (high LSAT, low GPA) score highly
        - Based on school's scholarship percentage and median
 
-    5. **Geographic Fit (10%)**: Location preference alignment
+    6. **Geographic Fit (10%)**: Location preference alignment
        - 100 if in preferred region, 50 if flexible, 0 if excluded
 
-    **Composite Score**: Weighted average of above (default weights shown)
+    **Composite Score**: Weighted average of above (weights: 30/25/10/15/10/10)
 
     **Filtering**:
     - Respects "Only strong candidates" preference (removes reaches)
@@ -332,6 +424,7 @@ def rank_schools(
             - practice_area_fit_score (0-100)
             - scholarship_likelihood_score (0-100)
             - geographic_fit_score (0-100)
+            - school_quality_score (0-100)
             - composite_score (0-100)
 
     Raises:
@@ -360,12 +453,14 @@ def rank_schools(
         practice_area_score = _compute_practice_area_fit(profile, school)
         scholarship_score = _compute_scholarship_likelihood(profile, school, lsat, gpa)
         geographic_score = _compute_geographic_fit(profile, school)
+        school_quality_score = _compute_school_quality_score(school)
 
-        # Composite score (default weights)
+        # Composite score (with school quality factored in)
         composite_score = (
             admissibility_score * 0.30
-            + goal_fit_score * 0.30
-            + practice_area_score * 0.20
+            + goal_fit_score * 0.25
+            + school_quality_score * 0.10
+            + practice_area_score * 0.15
             + scholarship_score * 0.10
             + geographic_score * 0.10
         )
@@ -378,6 +473,7 @@ def rank_schools(
         school_with_scores["practice_area_fit_score"] = round(practice_area_score, 1)
         school_with_scores["scholarship_likelihood_score"] = round(scholarship_score, 1)
         school_with_scores["geographic_fit_score"] = round(geographic_score, 1)
+        school_with_scores["school_quality_score"] = round(school_quality_score, 1)
         school_with_scores["composite_score"] = round(composite_score, 1)
 
         scored_schools.append(school_with_scores)

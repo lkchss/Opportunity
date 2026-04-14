@@ -76,7 +76,7 @@ class TestAdmissibilityScore:
         gpa = 3.96  # Harvard median
         score, tier = _compute_admissibility_score(lsat, gpa, HARVARD)
         assert tier == "target"
-        assert 40 < score < 60  # Around 50
+        assert 55 <= score <= 65  # Around 60 with new percentile-based scoring
 
     def test_below_25th_percentiles(self):
         """Score and tier for weak candidate below 25th."""
@@ -84,7 +84,7 @@ class TestAdmissibilityScore:
         gpa = 3.5   # Below Harvard 25th (3.82)
         score, tier = _compute_admissibility_score(lsat, gpa, HARVARD)
         assert tier == "hard reach"
-        assert score < 30
+        assert score < 35  # Adjusted for percentile-based scoring
 
     def test_between_25th_and_50th(self):
         """Score and tier for reach candidate."""
