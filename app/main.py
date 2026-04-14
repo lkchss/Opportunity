@@ -1,4 +1,23 @@
 import streamlit as st
+from app.data_loader import load_law_schools, DataValidationError
+
+
+@st.cache_data
+def get_schools() -> list[dict]:
+    """Load and cache law schools for the session."""
+    return load_law_schools()
+
+
+# Load schools at startup
+try:
+    schools = get_schools()
+except FileNotFoundError:
+    st.error("Error: law_schools.json not found. Please ensure app/data/law_schools.json exists.")
+    st.stop()
+except DataValidationError as e:
+    st.error(f"Error: Invalid law school data - {e}")
+    st.stop()
+
 
 st.title("Opportunity")
 
