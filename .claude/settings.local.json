@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:7sage.com)",
+      "WebFetch(domain:www.lawhub.org)",
+      "WebFetch(domain:www.heyfuturelawyer.com)",
+      "WebFetch(domain:www.ilrg.com)",
+      "Bash(python:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(pip install:*)"
+    ]
+  }
+}
