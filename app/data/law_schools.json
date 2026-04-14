@@ -454,6 +454,7 @@
       "bar_pass_rate_first_time": 0.87,
       "practice_area_strengths": ["corporate", "litigation", "ip", "international"],
       "lrap_quality": "basic",
+      "annual_tuition": 66500,
       "cost_of_living_index": 4
     },
     {
