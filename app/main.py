@@ -51,14 +51,32 @@ with st.form("profile_form"):
         "Geographic Preferences",
         ["Northeast", "Southeast", "Midwest", "Southwest", "West Coast", "Anywhere"],
     )
-    scholarship = st.radio(
-        "Scholarship Importance",
-        ["Must have significant scholarship", "Prefer but not required", "Cost is not a factor"],
-    )
-    reach = st.radio(
-        "Willingness to Apply to Reach Schools",
-        ["Only schools where I'm a strong candidate", "Willing to apply to reaches", "Want a balanced list"],
-    )
+
+    col1, col2 = st.columns([0.4, 0.6])
+    with col1:
+        st.markdown("**Scholarship Importance**")
+        st.caption("Not important ← → Critical")
+    with col2:
+        scholarship = st.slider(
+            "Scholarship Importance",
+            min_value=0,
+            max_value=10,
+            value=5,
+            label_visibility="collapsed",
+        )
+
+    col3, col4 = st.columns([0.4, 0.6])
+    with col3:
+        st.markdown("**Reach Preference**")
+        st.caption("Love reaches ← → Only safe schools")
+    with col4:
+        reach = st.slider(
+            "Reach Preference",
+            min_value=0,
+            max_value=10,
+            value=5,
+            label_visibility="collapsed",
+        )
 
     st.subheader("Background (Optional)")
     work_experience = st.text_area("Work Experience", placeholder="Briefly describe any relevant work experience...")

@@ -62,10 +62,24 @@ def _compute_admissibility_score(
     Returns:
         (admissibility_score, tier_label) tuple
     """
-    # LSAT scoring (percentile-based, more granular)
+    # No-LSAT path: GPA-only scoring with capped tier
     if lsat is None:
-        lsat_score = 30  # Conservative estimate
-    elif lsat >= school["lsat_75"]:
+        if gpa >= school["gpa_75"]:
+            gpa_only_score = 65
+            no_lsat_tier = "target"
+        elif gpa >= school["gpa_50"]:
+            gpa_only_score = 50
+            no_lsat_tier = "target"
+        elif gpa >= school["gpa_25"]:
+            gpa_only_score = 35
+            no_lsat_tier = "reach"
+        else:
+            gpa_only_score = 15
+            no_lsat_tier = "hard reach"
+        return gpa_only_score, no_lsat_tier
+
+    # LSAT scoring (percentile-based, more granular)
+    if lsat >= school["lsat_75"]:
         # Above 75th: map to 85-100 based on how far above
         overage = (lsat - school["lsat_75"]) / max(school["lsat_75"] - school["lsat_50"], 1)
         lsat_score = min(85 + overage * 15, 100)
@@ -77,6 +91,9 @@ def _compute_admissibility_score(
         # Between 25th and 50th: map to 40-60
         progress = (lsat - school["lsat_25"]) / max(school["lsat_50"] - school["lsat_25"], 1)
         lsat_score = 40 + progress * 20
+    elif lsat < school["lsat_25"] - 10:
+        # Statistical impossibility: 10+ points below 25th
+        lsat_score = 0
     else:
         # Below 25th: map to 0-40
         if lsat < 120:
@@ -102,18 +119,27 @@ def _compute_admissibility_score(
     # Weighted composite: LSAT 70%, GPA 30%
     composite = lsat_score * 0.70 + gpa_score * 0.30
 
-    # Determine tier (LSAT-weighted logic)
-    lsat_at_75 = lsat is not None and lsat >= school["lsat_75"]
-    lsat_at_50 = lsat is not None and lsat >= school["lsat_50"]
-    lsat_at_25 = lsat is not None and lsat >= school["lsat_25"]
+    # Determine tier (both LSAT and GPA matter — schools protect both medians)
+    lsat_at_75 = lsat >= school["lsat_75"]
+    lsat_at_50 = lsat >= school["lsat_50"]
+    lsat_at_25 = lsat >= school["lsat_25"]
     gpa_at_75 = gpa >= school["gpa_75"]
     gpa_at_50 = gpa >= school["gpa_50"]
+    gpa_at_25 = gpa >= school["gpa_25"]
 
-    if lsat_at_75 or (lsat_at_50 and gpa_at_75):
+    # Safety requires strong on both axes — protects GPA median
+    if lsat_at_75 and gpa_at_50:
         tier = "safety"
-    elif lsat_at_50 or (lsat_at_25 and gpa_at_50):
+    elif lsat_at_50 and gpa_at_50:
         tier = "target"
-    elif lsat_at_25:
+    elif (lsat_at_50 and gpa_at_25) or (lsat_at_25 and gpa_at_50):
+        tier = "target"
+    elif lsat_at_25 and gpa_at_25:
+        tier = "reach"
+    elif lsat_at_75 or gpa_at_75:
+        # Extreme splitter: one axis elite, other below 25th → reach
+        tier = "reach"
+    elif lsat_at_50 or gpa_at_50:
         tier = "reach"
     else:
         tier = "hard reach"
@@ -121,7 +147,25 @@ def _compute_admissibility_score(
     return composite, tier
 
 
-def _compute_goal_fit_score(profile: dict, school: dict) -> float:
+_LRAP_MULTIPLIERS = {
+    "excellent": 1.25,
+    "strong": 1.10,
+    "moderate": 1.00,
+    "weak": 0.80,
+}
+
+
+def _compute_goal_fit_scalars(schools: list[dict]) -> dict:
+    """Precompute max employment percentages across schools for normalization."""
+    return {
+        "biglaw_max": max((s.get("biglaw_pct", 0) for s in schools), default=1) or 1,
+        "clerkship_max": max((s.get("federal_clerkship_pct", 0) for s in schools), default=1) or 1,
+        "pi_max": max((s.get("public_interest_pct", 0) for s in schools), default=1) or 1,
+        "gov_max": max((s.get("government_pct", 0) for s in schools), default=1) or 1,
+    }
+
+
+def _compute_goal_fit_score(profile: dict, school: dict, scalars: Optional[dict] = None) -> float:
     """
     Compute goal fit score based on primary career goal.
 
@@ -143,38 +187,42 @@ def _compute_goal_fit_score(profile: dict, school: dict) -> float:
         Score 0-100
     """
     goal = profile.get("goal", "Unsure").lower()
+    scalars = scalars or {}
+
+    # Normalize against top-performing school for each outcome (percentile-style)
+    biglaw_max = scalars.get("biglaw_max", 1) or 1
+    clerkship_max = scalars.get("clerkship_max", 1) or 1
+    pi_max = scalars.get("pi_max", 1) or 1
+    gov_max = scalars.get("gov_max", 1) or 1
+
+    biglaw_norm = (school.get("biglaw_pct", 0) / biglaw_max) * 100
+    clerkship_norm = (school.get("federal_clerkship_pct", 0) / clerkship_max) * 100
+    pi_norm = (school.get("public_interest_pct", 0) / pi_max) * 100
+    gov_norm = (school.get("government_pct", 0) / gov_max) * 100
+
+    # LRAP multiplier for careers needing loan forgiveness
+    lrap = school.get("lrap_quality", "moderate").lower()
+    lrap_mult = _LRAP_MULTIPLIERS.get(lrap, 1.0)
 
     if "biglaw" in goal:
-        return school.get("biglaw_pct", 0) * 100
+        return min(biglaw_norm, 100)
     elif "clerkship" in goal:
-        return school.get("federal_clerkship_pct", 0) * 100
-    elif "interest" in goal:  # public interest
-        return school.get("public_interest_pct", 0) * 100
-    elif "government" in goal:
-        return school.get("government_pct", 0) * 100
+        return min(clerkship_norm, 100)
+    elif "interest" in goal:  # public interest — LRAP critical
+        return min(pi_norm * lrap_mult, 100)
+    elif "government" in goal:  # government — LRAP relevant (PSLF)
+        return min(gov_norm * lrap_mult, 100)
     elif "academia" in goal:
-        # Academia requires elite placement: weight clerkships + biglaw as proxies
-        clerkship_score = school.get("federal_clerkship_pct", 0) * 100
-        biglaw_score = school.get("biglaw_pct", 0) * 100
-        # Clerkships are stronger signal for academia, weight 60/40
-        return clerkship_score * 0.6 + biglaw_score * 0.4
+        # Academia requires elite placement: clerkships 60%, biglaw 40%
+        return min(clerkship_norm * 0.6 + biglaw_norm * 0.4, 100)
     elif "in-house" in goal or "inhouse" in goal or "in house" in goal:
-        # In-house often recruited from BigLaw, so use biglaw_pct as proxy
-        return school.get("biglaw_pct", 0) * 100 * 0.8
+        return min(biglaw_norm * 0.8, 100)
     elif "solo" in goal or "small firm" in goal:
-        # Solo/small firm practice: regional schools often better
-        # Use inverse of biglaw_pct as rough proxy (not perfect, but reasonable)
+        # Regional/small firm: inverse of biglaw, modest baseline
         biglaw_pct = school.get("biglaw_pct", 0)
-        # Map 0% biglaw → 70%, 50% biglaw → 35%, 100% biglaw → 0%
         return max(70 - (biglaw_pct * 70), 0)
-    else:  # Unsure or other: balanced average
-        outcomes = [
-            school.get("biglaw_pct", 0),
-            school.get("federal_clerkship_pct", 0),
-            school.get("public_interest_pct", 0),
-            school.get("government_pct", 0),
-        ]
-        return (sum(outcomes) / len(outcomes)) * 100
+    else:  # Unsure: balanced average of normalized outcomes
+        return (biglaw_norm + clerkship_norm + pi_norm + gov_norm) / 4
 
 
 def _compute_practice_area_fit(profile: dict, school: dict) -> float:
@@ -227,11 +275,17 @@ def _compute_scholarship_likelihood(profile: dict, school: dict, lsat: Optional[
     lsat_vs_75 = lsat - school["lsat_75"]  # Positive = above 75th
     gpa_vs_25 = gpa - school["gpa_25"]  # Positive = above 25th
 
-    # Splitter: high LSAT, low GPA → schools offer merit aid for LSAT boost
-    if lsat_vs_75 > 5 and gpa_vs_25 < 0.5:
+    # Splitter: high LSAT, low GPA → merit aid IF GPA doesn't tank school's median
+    # Schools won't pay to hurt their own GPA median (USNWR impact)
+    gpa_below_25 = school["gpa_25"] - gpa
+    if lsat_vs_75 > 5 and gpa_vs_25 < 0.5 and gpa_below_25 <= 0.3:
+        # Classic splitter, GPA within range
         splitter_boost = 85
-    # Reverse splitter: high GPA, low LSAT → more modest boost
+    elif lsat_vs_75 > 5 and gpa_below_25 > 0.3:
+        # Catastrophic GPA: drags median too far, minimal $ offered
+        splitter_boost = 35
     elif gpa - school["gpa_75"] > 0.5 and lsat < school["lsat_50"]:
+        # Reverse splitter: high GPA, low LSAT
         splitter_boost = 60
     else:
         splitter_boost = 50
@@ -331,36 +385,91 @@ def _compute_geographic_fit(profile: dict, school: dict) -> float:
     return 100 if matched_region else 50
 
 
-def _apply_filters(schools_with_scores: list[dict], profile: dict) -> list[dict]:
+def _apply_tier_adjustment(tier: str, reach_slider: float) -> float:
     """
-    Apply user preference filters to remove schools that don't meet criteria.
+    Apply tier-based adjustment based on reach preference slider.
 
-    Filters:
-    - Reach preference: "Only schools where I'm a strong candidate" → remove reaches
-    - Scholarship: "Must have significant scholarship" → remove low scholarship likelihood
+    reach_slider: 0 = love reaches (boost reaches), 10 = only safe (crush reaches).
+    Direction matters — prior version was inverted.
+
+    Args:
+        tier: Admissibility tier (safety, target, reach, hard reach)
+        reach_slider: Slider value 0-10
+
+    Returns:
+        Multiplier to apply to composite score
+    """
+    # Normalized slider position: -1 (love reaches) to +1 (only safe)
+    pos = (reach_slider - 5) / 5.0  # -1..+1
+
+    tier_multipliers = {
+        # Safety boost when user wants safety
+        "safety": 1.0 + max(pos, 0) * 0.15,         # 1.0 → 1.15
+        "target": 1.0,
+        # Reach: boost when love reaches, crush when only safe
+        "reach": 1.20 - (reach_slider / 10) * 0.80,      # 1.20 → 0.40
+        # Hard reach: boost smaller, crush harder
+        "hard reach": 0.90 - (reach_slider / 10) * 0.80, # 0.90 → 0.10
+    }
+    return tier_multipliers.get(tier, 1.0)
+
+
+def _apply_adjustments(schools_with_scores: list[dict], profile: dict) -> list[dict]:
+    """
+    Apply user preference adjustments to scores (no hard filtering).
+
+    Adjustments:
+    - Reach preference (0-10 slider): Penalize/boost reach schools based on preference
+    - Scholarship (0-10 slider): Adjust scholarship score weight in composite
 
     Args:
         schools_with_scores: List of school dicts with computed scores
-        profile: User profile dict with reach preference and scholarship importance
+        profile: User profile dict with reach_preference and scholarship (0-10 sliders)
 
     Returns:
-        Filtered list of schools
+        List of schools with adjusted composite scores
     """
-    filtered = schools_with_scores
+    reach_slider = profile.get("reach_preference", 5)  # Default 5 = balanced
+    scholarship_slider = profile.get("scholarship", 5)  # Default 5 = moderate
 
-    # Reach filter
-    reach_pref = profile.get("reach_preference", "Want a balanced list")
-    if "Only schools where I'm a strong candidate" in reach_pref:
-        # Remove reach and hard reach tiers
-        filtered = [s for s in filtered if s["admissibility_tier"] in ["safety", "target"]]
+    adjusted = []
+    for school in schools_with_scores:
+        school_copy = school.copy()
 
-    # Scholarship filter
-    scholarship_pref = profile.get("scholarship", "Prefer but not required")
-    if "Must have significant scholarship" in scholarship_pref:
-        # Remove schools with low scholarship likelihood
-        filtered = [s for s in filtered if s["scholarship_likelihood_score"] >= 50]
+        # Apply tier-based adjustment for reach preference
+        tier = school_copy.get("admissibility_tier", "target")
+        tier_multiplier = _apply_tier_adjustment(tier, reach_slider)
 
-    return filtered
+        # Recalculate composite with reach adjustment and scholarship weight
+        admissibility = school_copy.get("admissibility_score", 0)
+        goal_fit = school_copy.get("goal_fit_score", 0)
+        school_quality = school_copy.get("school_quality_score", 0)
+        practice_area = school_copy.get("practice_area_fit_score", 0)
+        scholarship = school_copy.get("scholarship_likelihood_score", 0)
+        geographic = school_copy.get("geographic_fit_score", 0)
+
+        # Scholarship weight: 0-10 slider maps to 0.05-0.15 (default 0.10)
+        scholarship_weight = 0.05 + (scholarship_slider / 100)
+
+        # Rebalanced base weights: quality bumped 10→20 to protect elite schools
+        # admissibility 28 + goal 22 + quality 20 + practice 10 + geo 10 = 0.90
+        base_weight = 0.28 + 0.22 + 0.20 + 0.10 + 0.10
+        remaining_weight = 1.0 - scholarship_weight
+        scaling_factor = remaining_weight / base_weight
+
+        adjusted_composite = (
+            admissibility * 0.28 * scaling_factor
+            + goal_fit * 0.22 * scaling_factor
+            + school_quality * 0.20 * scaling_factor
+            + practice_area * 0.10 * scaling_factor
+            + scholarship * scholarship_weight
+            + geographic * 0.10 * scaling_factor
+        ) * tier_multiplier
+
+        school_copy["composite_score"] = round(adjusted_composite, 1)
+        adjusted.append(school_copy)
+
+    return adjusted
 
 
 def rank_schools(
@@ -444,23 +553,26 @@ def rank_schools(
     if gpa == 0 or gpa is None:
         raise ValueError("profile must include a valid GPA")
 
+    # Precompute goal-fit scalars for percentile-style normalization
+    scalars = _compute_goal_fit_scalars(schools)
+
     # Score each school
     scored_schools = []
     for school in schools:
         # Compute component scores
         admissibility_score, tier = _compute_admissibility_score(lsat, gpa, school)
-        goal_fit_score = _compute_goal_fit_score(profile, school)
+        goal_fit_score = _compute_goal_fit_score(profile, school, scalars)
         practice_area_score = _compute_practice_area_fit(profile, school)
         scholarship_score = _compute_scholarship_likelihood(profile, school, lsat, gpa)
         geographic_score = _compute_geographic_fit(profile, school)
         school_quality_score = _compute_school_quality_score(school)
 
-        # Composite score (with school quality factored in)
+        # Composite (base weights — overwritten by _apply_adjustments)
         composite_score = (
-            admissibility_score * 0.30
-            + goal_fit_score * 0.25
-            + school_quality_score * 0.10
-            + practice_area_score * 0.15
+            admissibility_score * 0.28
+            + goal_fit_score * 0.22
+            + school_quality_score * 0.20
+            + practice_area_score * 0.10
             + scholarship_score * 0.10
             + geographic_score * 0.10
         )
@@ -478,11 +590,11 @@ def rank_schools(
 
         scored_schools.append(school_with_scores)
 
-    # Apply user preference filters
-    filtered_schools = _apply_filters(scored_schools, profile)
+    # Apply user preference adjustments
+    adjusted_schools = _apply_adjustments(scored_schools, profile)
 
     # Sort by composite score descending
-    filtered_schools.sort(key=lambda s: s["composite_score"], reverse=True)
+    adjusted_schools.sort(key=lambda s: s["composite_score"], reverse=True)
 
     # Return top N
-    return filtered_schools[:top_n]
+    return adjusted_schools[:top_n]
