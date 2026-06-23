@@ -7,9 +7,6 @@ school, fellowships, gap years, travel.
 
 ## How it works
 
-The finder splits **search** from **reasoning** — that split is what lets you
-bring any model.
-
 1. **You describe yourself** — a few fields, a résumé, or a paragraph of context.
 2. **Search (DuckDuckGo).** Your profile becomes a set of queries; DuckDuckGo
    returns candidate listings. No API key, works everywhere.
