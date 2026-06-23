@@ -114,3 +114,7 @@ finder/
   report.py     # renders the HTML report
 tests/
 ```
+
+## License
+
+[MIT](LICENSE) — free to use, modify, and distribute.

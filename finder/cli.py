@@ -158,7 +158,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--background", help="Your background")
     p.add_argument("--goals", help="What you want")
     p.add_argument("--resume", help="Path to a resume (.pdf or .txt)")
-    p.add_argument("--max", type=int, default=8, help="Max results (default 8)")
+    p.add_argument("--max", type=int, default=8, help="Max results (default 8, up to 30)")
 
     p.add_argument("--provider", choices=["anthropic", "openai", "none"],
                    help="Override LLM_PROVIDER")

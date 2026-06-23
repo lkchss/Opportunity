@@ -16,6 +16,9 @@ except ImportError:  # pragma: no cover - fallback for older installs
 
 # page-1-only (5) missed everything below the fold; 25 reaches lower-SEO hits
 MAX_RESULTS_PER_QUERY = 25
+# Stop early after this many consecutive queries return nothing — usually a sign
+# DuckDuckGo is rate-limiting/bot-walling us, so further queries are wasted.
+MAX_EMPTY_STREAK = 3
 
 
 @dataclass
@@ -29,6 +32,7 @@ class Result:
 def search(queries: list[str]) -> list[Result]:
     results: list[Result] = []
     seen: set[str] = set()
+    empty_streak = 0
     with DDGS() as ddgs:
         for query in queries:
             try:
@@ -36,9 +40,17 @@ def search(queries: list[str]) -> list[Result]:
                     ddgs.text(query, max_results=MAX_RESULTS_PER_QUERY)
                 )
             except Exception:
-                # Rate limit, transient bot-wall, or network blip — skip this
-                # query rather than losing every other query's results.
+                # Rate limit, transient bot-wall, or network blip — treat as an
+                # empty search and skip rather than aborting the whole run.
+                hits = []
+
+            if not hits:
+                empty_streak += 1
+                if empty_streak >= MAX_EMPTY_STREAK:
+                    break
                 continue
+            empty_streak = 0
+
             for h in hits:
                 url = h.get("href") or h.get("url", "")
                 if url and url not in seen:

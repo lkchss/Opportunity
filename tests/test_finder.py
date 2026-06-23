@@ -80,6 +80,48 @@ def test_build_queries_fills_templates():
     assert any("data analyst" in q for q in qs)
 
 
+class _FakeDDGS:
+    """Stand-in for ddgs.DDGS: returns canned pages and counts .text() calls."""
+
+    pages: dict = {}
+    calls = 0
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+    def text(self, query, max_results):  # noqa: D401 - test stub
+        type(self).calls += 1
+        return self.pages.get(query, [])
+
+
+def test_search_stops_after_consecutive_empty(monkeypatch):
+    from finder import scraper
+
+    _FakeDDGS.pages = {}
+    _FakeDDGS.calls = 0
+    monkeypatch.setattr(scraper, "DDGS", _FakeDDGS)
+    out = scraper.search(["a", "b", "c", "d", "e"])
+    assert out == []
+    assert _FakeDDGS.calls == scraper.MAX_EMPTY_STREAK  # stopped early, didn't run all 5
+
+
+def test_search_collects_and_dedupes(monkeypatch):
+    from finder import scraper
+
+    _FakeDDGS.pages = {
+        "a": [{"href": "http://x", "title": "X", "body": "b"}],
+        "b": [],  # one empty in the middle must not trip the early stop
+        "c": [{"href": "http://x"}, {"href": "http://y", "title": "Y", "body": ""}],
+    }
+    _FakeDDGS.calls = 0
+    monkeypatch.setattr(scraper, "DDGS", _FakeDDGS)
+    out = scraper.search(["a", "b", "c"])
+    assert [r.url for r in out] == ["http://x", "http://y"]  # deduped across queries
+
+
 def test_report_render_escapes_html(tmp_path):
     cards = [
         {
