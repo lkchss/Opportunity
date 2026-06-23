@@ -2,20 +2,15 @@
 
 Ironically, finding ways to spend your time is time-intensive. Opportunity allows for a reduction in search-costs.
 
-Describe yourself, get ranked, explained opportunities: jobs, internships, grad
-school, fellowships, gap years, travel.
+Describe yourself, get ranked, explained opportunities.
 
 ## How it works
 
 1. **You describe yourself** — a few fields, a résumé, or a paragraph of context.
 2. **Search (DuckDuckGo).** Your profile becomes a set of queries; DuckDuckGo
    returns candidate listings. No API key, works everywhere.
-3. **Reasoning (your model).** The model you chose ranks those candidates against
-   your profile and writes a short "why this fits" for each. Because it only
-   reasons over text the search already found, the model never needs a built-in
-   web tool — so Claude, OpenAI, or a local model all work the same. 
-4. **Results.** Opportunity cards in the web app, or an HTML report — plus optional
-   JSON — from the CLI.
+3. **Reasoning** LLM ranks candidates against your profile's parameters.  
+4. **Results.** Displays ranked opportunities in web app or html.
 
 ## Two ways to run
 
@@ -101,13 +96,11 @@ input). Output is an HTML report (and optional JSON) written to `output/`.
 
 ## Use it from any agent CLI — `/opportunity` (no API key)
 
-Run the finder inside an agentic CLI, where **the agent is the model** — it searches
-and ranks with its own tools, on whatever subscription you're already in, so no
-separate API key is needed. Summon it explicitly with **`/opportunity`** (optionally
-followed by what you're looking for):
+Run the finder inside an agentic CLI; summon it explicitly with **`/opportunity`** 
 
 ```
 /opportunity remote data-analyst roles for an econ grad with Python/SQL
+/opportunity profile.md ways to spend a gap year
 ```
 
 The workflow is one prompt — [`prompts/opportunity.md`](prompts/opportunity.md) —
