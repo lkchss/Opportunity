@@ -2,20 +2,20 @@
 
 Ironically, finding ways to spend your time is time-intensive. Opportunity allows for a reduction in search-costs.
 
-Describe yourself, get ranked, explained opportunities.
+Describe yourself; get ranked, explained opportunities.
 
 ## How it works
 
-1. **You describe yourself** — a few fields, a document (PDF or text), or both.
-2. **The model writes the searches.** It reads your profile + context and decides
-   what to query; DuckDuckGo runs them (no API key). With no model, templates do this.
-3. **The model ranks** the candidates against your profile and explains each pick.
-4. **Results.** Ranked opportunity cards in the web app, or an HTML report.
+1. **You describe yourself:** a few fields, a document (PDF or text), or both.
+2. **The model writes the searches:** It reads your profile + context and decides
+   what to query.
+3. **The model ranks candidates:** Weights against your profile and explains each fit.
+4. **Results:** Ranked opportunity cards in the web app, or an HTML report.
 
 ## Two ways to run
 
 - **Web app** — a form in your browser, with a sidebar to pick the
-  model. Best if you'd rather click than type.
+  model.
 - **CLI** — `python -m finder.cli`. Best for quick runs, scripting, or
   staying in the terminal.
 
@@ -110,8 +110,7 @@ pass a context file, a freeform request, or both:
 ```
 
 The agent reads any file you name as your profile/context, then searches and ranks
-with its own tools — on whatever subscription you're already in, so no API key is
-needed.
+with its own tools.
 
 The workflow is one prompt — [`prompts/opportunity.md`](prompts/opportunity.md) —
 that each CLI loads from its own command directory:
