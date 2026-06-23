@@ -49,10 +49,16 @@ CATEGORIES = [
 ]
 
 
-def _read_resume(path: str) -> str:
+# Files the CLI looks for in the working directory when no input is given.
+AUTODETECT = ("profile.json", "context.txt", "context.md", "profile.txt")
+GUIDE_FILE = "GETTING_STARTED.md"
+
+
+def _read_doc(path: str) -> str:
+    """Read a .pdf/.txt/.md file to plain text."""
     p = Path(path)
     if not p.exists():
-        raise FileNotFoundError(f"Resume not found: {path}")
+        raise FileNotFoundError(f"File not found: {path}")
     if p.suffix.lower() == ".pdf":
         import pypdf
 
@@ -61,19 +67,69 @@ def _read_resume(path: str) -> str:
     return p.read_text(encoding="utf-8")
 
 
-def _load_profile(args: argparse.Namespace) -> dict:
+def _autodetect() -> tuple[dict, str] | None:
+    """Pick up a profile.json or a context.txt/.md sitting in the working directory."""
+    for name in AUTODETECT:
+        p = Path(name)
+        if not p.exists():
+            continue
+        if p.suffix.lower() == ".json":
+            return json.loads(p.read_text(encoding="utf-8")), name
+        return {"background": _read_doc(name)}, name
+    return None
+
+
+def _load_profile(args: argparse.Namespace) -> tuple[dict, str | None]:
     profile: dict = {}
+    src: str | None = None
     if args.profile:
         profile = json.loads(Path(args.profile).read_text(encoding="utf-8"))
-    # Flags override saved-profile fields when provided.
+        src = args.profile
+    elif args.context:
+        profile = {"background": _read_doc(args.context)}
+        src = args.context
+    elif not _has_flag_input(args):
+        # Nothing explicit — try a file in the current directory.
+        auto = _autodetect()
+        if auto:
+            profile, src = auto
+
+    # Flags override loaded fields when provided.
     for key in ("category", "role", "field", "location", "background", "goals"):
         val = getattr(args, key, None)
         if val:
             profile[key] = val
     if args.resume:
-        profile["resume_text"] = _read_resume(args.resume)
+        profile["resume_text"] = _read_doc(args.resume)
     profile.setdefault("category", "Jobs")
-    return profile
+    return profile, src
+
+
+def _has_flag_input(args: argparse.Namespace) -> bool:
+    return any(getattr(args, k, None) for k in ("role", "field", "location", "background", "goals", "resume"))
+
+
+def _profile_has_content(profile: dict) -> bool:
+    return bool(profile.get("goals") or profile.get("background") or profile.get("resume_text"))
+
+
+def _print_guide() -> None:
+    """Show the getting-started guide (the .md file, or a short fallback)."""
+    guide = Path(__file__).parent.parent / GUIDE_FILE
+    if guide.exists():
+        text = guide.read_text(encoding="utf-8")
+        enc = sys.stdout.encoding or "utf-8"  # avoid cp1252 crashes on Windows
+        sys.stdout.write(text.encode(enc, errors="replace").decode(enc) + "\n")
+    else:
+        print(
+            "Not enough input. Tell the finder about you in one of these ways:\n"
+            "  1. Flags:    python -m finder.cli --category Jobs --goals '...' --background '...'\n"
+            "  2. A file:   write context.txt (a paragraph about you) in this folder, then run\n"
+            "               python -m finder.cli\n"
+            "  3. Profile:  streamlit run finder/portal.py  ->  python -m finder.cli --profile profile.json\n"
+            "\nInstall: pip install -r requirements.txt  (+ a backend, or use --no-llm).\n"
+            "Run python -m finder.cli -h for all options."
+        )
 
 
 def _apply_backend_overrides(args: argparse.Namespace) -> None:
@@ -93,6 +149,8 @@ def build_parser() -> argparse.ArgumentParser:
         description="Find ranked opportunities. Bring your own LLM backend (or none).",
     )
     p.add_argument("--profile", help="Path to a saved profile.json")
+    p.add_argument("--context", help="Path to a plain-text file describing you "
+                   "(.txt/.md/.pdf — an easy alternative to --background)")
     p.add_argument("--category", choices=CATEGORIES, help="What you're looking for")
     p.add_argument("--role", help="Role / job title")
     p.add_argument("--field", help="Field / discipline")
@@ -121,10 +179,12 @@ def run(argv: list[str] | None = None) -> Path:
     args = build_parser().parse_args(argv)
     _apply_backend_overrides(args)
 
-    profile = _load_profile(args)
-    if not profile.get("goals") and not profile.get("background") and not profile.get("resume_text"):
-        print("Provide at least --goals plus --background/--resume (or a --profile).", file=sys.stderr)
+    profile, src = _load_profile(args)
+    if not _profile_has_content(profile):
+        _print_guide()
         sys.exit(2)
+    if src:
+        print(f"Loaded your info from: {src}")
 
     cfg = llm.load_config()
     if cfg.warning:

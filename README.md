@@ -57,10 +57,15 @@ No backend configured? It still runs in keyword-only mode:
 python -m finder.cli --no-llm --category Jobs --goals "remote entry-level data role"
 ```
 
+Don't want to type flags? Write a paragraph about yourself in `context.txt` (or
+`profile.json`) and just run `python -m finder.cli` — it auto-detects either in the
+current folder. Or point at any file with `--context path/to/you.txt`.
+
 Other flags: `--field`, `--background`, `--resume path.pdf`, `--profile profile.json`,
 `--provider/--model/--base-url` (override env), `--json`, `--no-open`, `--out DIR`.
-Run `python -m finder.cli -h` for the full list. Output is an HTML report (and
-optional JSON) written to `output/`.
+Run `python -m finder.cli -h` for the full list, or [GETTING_STARTED.md](GETTING_STARTED.md)
+for a walkthrough (also shown if you run the CLI with no input). Output is an HTML
+report (and optional JSON) written to `output/`.
 
 ## Run — web UI
 

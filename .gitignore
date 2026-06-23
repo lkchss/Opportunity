@@ -25,9 +25,12 @@ venv/
 .DS_Store
 Thumbs.db
 
-# Generated output + saved profile
+# Generated output + your personal profile / context files
 output/
 profile.json
+profile.txt
+context.txt
+context.md
 
 # pytest
 .pytest_cache/

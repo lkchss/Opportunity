@@ -10,7 +10,7 @@ works without touching the sidebar.
 from __future__ import annotations
 
 import io
-import os
+import json
 import sys
 from pathlib import Path
 
@@ -81,45 +81,59 @@ def _backend_sidebar() -> llm.LLMConfig:
 def run() -> None:
     st.set_page_config(page_title="Opportunity Finder", layout="wide")
     st.title("Opportunity Finder")
-    st.caption("Tell us about you. We'll search for matching opportunities.")
+    st.caption("Tell us about you — the more detail you give, the better the matches.")
 
     cfg = _backend_sidebar()
 
-    category = st.selectbox("What are you looking for?", CATEGORIES)
+    with st.form("profile"):
+        category = st.selectbox("What are you looking for?", CATEGORIES)
 
-    resume_file = st.file_uploader("Resume (optional PDF)", type=["pdf"])
-    resume_text: str = ""
-    if resume_file is not None:
-        reader = pypdf.PdfReader(io.BytesIO(resume_file.read()))
-        resume_text = "\n".join(page.extract_text() or "" for page in reader.pages)
-        st.success(f"Resume loaded — {len(reader.pages)} page(s)")
+        c1, c2, c3 = st.columns(3)
+        role = c1.text_input("Role / title", placeholder="e.g. Data Analyst")
+        field = c2.text_input("Field / discipline", placeholder="e.g. Economics")
+        location = c3.text_input("Location", placeholder="e.g. Remote, Bay Area")
 
-    background = st.text_area(
-        "Your background",
-        height=180,
-        placeholder="Education, work experience, skills, location, anything relevant.",
-    )
-    goals = st.text_area(
-        "What you want",
-        height=120,
-        placeholder="What kind of opportunity, ideal outcome, constraints (timing, location, compensation).",
-    )
+        background = st.text_area(
+            "Your background",
+            height=150,
+            placeholder="Education, work experience, skills — anything relevant.",
+        )
+        goals = st.text_area(
+            "What you want",
+            height=110,
+            placeholder="Ideal outcome and constraints (timing, location, compensation).",
+        )
+        resume_file = st.file_uploader("Resume (optional PDF)", type=["pdf"])
+        max_results = st.slider("Number of results", 3, 15, 8)
 
-    ready = bool(goals and (background or resume_text))
-    if st.button("Find opportunities", type="primary", disabled=not ready):
-        profile = {
-            "category": category,
-            "background": background,
-            "goals": goals,
-            "resume_text": resume_text,
-        }
-        with st.spinner("Searching..."):
-            try:
-                result = find_opportunities(profile, cfg=cfg)
-            except RuntimeError as e:
-                st.error(str(e))
-                return
-        st.session_state["result"] = result
+        submitted = st.form_submit_button("Find opportunities", type="primary")
+
+    if submitted:
+        resume_text = ""
+        if resume_file is not None:
+            reader = pypdf.PdfReader(io.BytesIO(resume_file.read()))
+            resume_text = "\n".join(page.extract_text() or "" for page in reader.pages)
+
+        if not (goals or background or resume_text):
+            st.warning("Add at least your goals plus some background (or a resume).")
+        else:
+            profile = {
+                "category": category,
+                "role": role,
+                "field": field,
+                "location": location,
+                "background": background,
+                "goals": goals,
+                "resume_text": resume_text,
+            }
+            with st.spinner("Searching..."):
+                try:
+                    result = find_opportunities(profile, cfg=cfg, max_results=max_results)
+                except RuntimeError as e:
+                    st.error(str(e))
+                    return
+            st.session_state["result"] = result
+            st.session_state["profile"] = profile
 
     result = st.session_state.get("result")
     if result and result.cards:
@@ -131,6 +145,14 @@ def run() -> None:
                 st.write(r.get("summary", ""))
                 if r.get("why_match"):
                     st.markdown(f"**Why this fits:** {r['why_match']}")
+        if st.session_state.get("profile"):
+            st.download_button(
+                "Save these inputs (profile.json)",
+                data=json.dumps(st.session_state["profile"], indent=2),
+                file_name="profile.json",
+                mime="application/json",
+                help="Reuse later with: python -m finder.cli --profile profile.json",
+            )
     elif result is not None:
         st.warning("No results found. Try adding more detail to your background or goals.")
 
