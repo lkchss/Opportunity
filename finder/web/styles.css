@@ -41,6 +41,31 @@ body {
   margin: 0;
 }
 
+/* backend picker */
+.backend {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0 14px;
+  margin-bottom: 26px;
+  background: var(--surface);
+}
+.backend > summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 11px 0;
+  font-size: 13px;
+  color: var(--soft);
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+.backend > summary::-webkit-details-marker { display: none; }
+.backend > summary::before { content: "\25B8"; color: var(--faint); }
+.backend[open] > summary::before { content: "\25BE"; }
+.backend-current { color: var(--ink); font-weight: 600; }
+.backend-grid { padding: 4px 0 16px; }
+.hint { font-size: 13px; color: var(--soft); margin: 4px 0 0; }
+
 /* form */
 .label {
   display: block;

@@ -6,7 +6,6 @@ import json
 import pytest
 
 from finder import cli, llm
-from finder.queries import build_queries
 from finder.report import render
 
 ENV_KEYS = [
@@ -76,69 +75,16 @@ def test_extract_json_handles_garbage():
     assert llm._extract_json("no json here") == []
 
 
-def test_build_queries_fills_templates():
-    qs = build_queries(category="Jobs", role="data analyst", location="Remote", year=2026)
-    assert qs and all(isinstance(q, str) and q for q in qs)
-    assert any("data analyst" in q for q in qs)
-
-
-class _FakeDDGS:
-    """Stand-in for ddgs.DDGS: returns canned pages and counts .text() calls."""
-
-    pages: dict = {}
-    calls = 0
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *a):
-        return False
-
-    def text(self, query, max_results):  # noqa: D401 - test stub
-        type(self).calls += 1
-        return self.pages.get(query, [])
-
-
-def test_search_stops_after_consecutive_empty(monkeypatch):
-    from finder import scraper
-
-    _FakeDDGS.pages = {}
-    _FakeDDGS.calls = 0
-    monkeypatch.setattr(scraper, "DDGS", _FakeDDGS)
-    out = scraper.search(["a", "b", "c", "d", "e"])
-    assert out == []
-    assert _FakeDDGS.calls == scraper.MAX_EMPTY_STREAK  # stopped early, didn't run all 5
-
-
-def test_search_collects_and_dedupes(monkeypatch):
-    from finder import scraper
-
-    _FakeDDGS.pages = {
-        "a": [{"href": "http://x", "title": "X", "body": "b"}],
-        "b": [],  # one empty in the middle must not trip the early stop
-        "c": [{"href": "http://x"}, {"href": "http://y", "title": "Y", "body": ""}],
-    }
-    _FakeDDGS.calls = 0
-    monkeypatch.setattr(scraper, "DDGS", _FakeDDGS)
-    out = scraper.search(["a", "b", "c"])
-    assert [r.url for r in out] == ["http://x", "http://y"]  # deduped across queries
-
-
 def test_profile_block_includes_context():
     block = llm._profile_block({"category": "Jobs", "context": "I love wildlife conservation"})
     assert "Context document:" in block
     assert "wildlife conservation" in block
 
 
-def test_extract_str_list():
-    assert llm._extract_str_list('here you go: ["a b", "c", 3] thanks') == ["a b", "c", "3"]
-    assert llm._extract_str_list("no array here") == []
-
-
-def test_generate_queries_requires_backend():
+def test_discover_requires_backend():
     cfg = llm.LLMConfig("none", "", None, None)
     with pytest.raises(RuntimeError):
-        llm.generate_queries({"goals": "x"}, cfg=cfg)
+        llm.discover_opportunities({"goals": "x"}, cfg=cfg)
 
 
 def test_cli_context_flag_routes_to_context_field(tmp_path):
@@ -161,13 +107,14 @@ def test_cli_render_agent_cards(tmp_path):
     assert "Analyst" in out.read_text(encoding="utf-8")
 
 
-def test_cli_brief_emits_queries(capsys):
+def test_cli_brief_emits_profile(capsys):
     with pytest.raises(SystemExit) as exc:
         cli.run(["--brief", "--category", "Jobs", "--role", "data analyst", "--goals", "x"])
     assert exc.value.code == 0
     data = json.loads(capsys.readouterr().out)
     assert data["category"] == "Jobs"
-    assert data["queries"]
+    assert data["profile"]["role"] == "data analyst"
+    assert "queries" not in data
 
 
 def test_server_serves_page_and_api(monkeypatch):
@@ -185,15 +132,22 @@ def test_server_serves_page_and_api(monkeypatch):
     r = client.post("/api/find", data={"category": "Jobs"})
     assert r.status_code == 400
 
-    # valid input -> cards (pipeline stubbed, no network)
+    # input present but no backend chosen -> 400
+    r = client.post("/api/find", data={"category": "Jobs", "goals": "remote data role"})
+    assert r.status_code == 400
+
+    # valid input + backend -> cards (pipeline stubbed, no network)
     monkeypatch.setattr(
         server, "find_opportunities",
-        lambda profile, max_results=8: PipelineResult(
+        lambda profile, cfg=None, max_results=8: PipelineResult(
             cards=[{"title": "X", "url": "http://x", "summary": "s", "why_match": "w"}],
             mode="test",
         ),
     )
-    r = client.post("/api/find", data={"category": "Jobs", "goals": "remote data role"})
+    r = client.post("/api/find", data={
+        "category": "Jobs", "goals": "remote data role",
+        "provider": "anthropic", "model": "claude-opus-4-8", "api_key": "sk-test",
+    })
     assert r.status_code == 200
     body = r.get_json()
     assert body["mode"] == "test"
@@ -209,8 +163,8 @@ def test_report_render_escapes_html(tmp_path):
             "why_match": "fits <you>",
         }
     ]
-    out = render(cards, "Jobs", "ctx", tmp_path / "r.html", mode="ddg-keyword")
+    out = render(cards, "Jobs", "ctx", tmp_path / "r.html", mode="Claude web search")
     html = out.read_text(encoding="utf-8")
     assert "&lt;Analyst&gt;" in html  # title escaped
     assert "<Analyst>" not in html
-    assert "ddg-keyword" in html
+    assert "Claude web search" in html

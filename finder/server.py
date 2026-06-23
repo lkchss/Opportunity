@@ -19,6 +19,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from dotenv import load_dotenv
 from flask import Flask, jsonify, request, send_from_directory
 
+from finder import llm
 from finder.pipeline import find_opportunities
 
 load_dotenv()
@@ -42,9 +43,41 @@ def _doc_text(file_storage) -> str:
     return data.decode("utf-8", errors="replace")
 
 
+def _config_from(form) -> llm.LLMConfig:
+    """Backend chosen in the UI overrides the server's env defaults per request."""
+    env = llm.load_config()
+    provider = (form.get("provider") or env.provider).strip()
+    model = (form.get("model") or env.model).strip()
+    base_url = (form.get("base_url") or env.base_url or "").strip() or None
+    api_key = form.get("api_key") or None
+    if not api_key and provider == env.provider:
+        api_key = env.api_key  # reuse the server's key when the provider matches
+    if provider == "openai" and not api_key and base_url:
+        api_key = "not-needed"  # local servers don't need a real key
+    return llm.LLMConfig(provider=provider, model=model, base_url=base_url, api_key=api_key)
+
+
 @app.get("/")
 def index():
     return send_from_directory(WEB, "index.html")
+
+
+@app.get("/api/config")
+def api_config():
+    """Expose the server's configured backend (never the key) to pre-fill the picker."""
+    cfg = llm.load_config()
+    return jsonify(
+        {
+            "provider": cfg.provider,
+            "model": cfg.model,
+            "base_url": cfg.base_url or "",
+            "has_key": bool(cfg.api_key),
+            "defaults": {
+                "anthropic": llm.DEFAULT_ANTHROPIC_MODEL,
+                "openai": llm.DEFAULT_OPENAI_MODEL,
+            },
+        }
+    )
 
 
 @app.get("/<path:path>")
@@ -67,19 +100,21 @@ def api_find():
     if not (profile["goals"] or profile["background"] or profile["context"]):
         return jsonify({"error": "Tell us your goals plus some background, or upload a document."}), 400
 
+    cfg = _config_from(form)
+    if not cfg.enabled:
+        return jsonify({"error": "Choose a model backend above — the finder needs an LLM."}), 400
+
     try:
         max_results = min(max(int(form.get("max", 8)), 1), MAX_RESULTS)
     except (TypeError, ValueError):
         max_results = 8
 
     try:
-        result = find_opportunities(profile, max_results=max_results)
+        result = find_opportunities(profile, cfg=cfg, max_results=max_results)
     except Exception as e:  # backend / network failure -> surface to the UI
         return jsonify({"error": str(e)}), 502
 
-    return jsonify(
-        {"cards": result.cards, "mode": result.mode, "candidates": result.candidate_count}
-    )
+    return jsonify({"cards": result.cards, "mode": result.mode})
 
 
 def main() -> None:

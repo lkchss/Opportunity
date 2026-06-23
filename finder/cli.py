@@ -15,8 +15,7 @@ environment (or the matching flags below):
   # Local via LM Studio
   LLM_PROVIDER=openai  LLM_BASE_URL=http://localhost:1234/v1   LLM_MODEL=<loaded-model>  python -m finder.cli ...
 
-  # No model at all — DuckDuckGo keyword results only
-  LLM_PROVIDER=none       python -m finder.cli ...
+A model is required — the finder finds and explains opportunities with the LLM.
 
 A saved profile (profile.json from the Streamlit portal) works too:
   python -m finder.cli --profile profile.json
@@ -37,7 +36,6 @@ from dotenv import load_dotenv
 
 from finder import llm
 from finder.pipeline import find_opportunities
-from finder.queries import build_queries
 from finder.report import render
 
 CATEGORIES = [
@@ -131,7 +129,7 @@ def _print_guide() -> None:
             "  2. A file:   write context.txt (a paragraph about you) in this folder, then run\n"
             "               python -m finder.cli\n"
             "  3. Profile:  streamlit run finder/portal.py  ->  python -m finder.cli --profile profile.json\n"
-            "\nInstall: pip install -r requirements.txt  (+ a backend, or use --no-llm).\n"
+            "\nInstall: pip install -r requirements.txt, then configure a model backend.\n"
             "Run python -m finder.cli -h for all options."
         )
 
@@ -143,8 +141,6 @@ def _apply_backend_overrides(args: argparse.Namespace) -> None:
         os.environ["LLM_MODEL"] = args.model
     if args.base_url:
         os.environ["LLM_BASE_URL"] = args.base_url
-    if args.no_llm:
-        os.environ["LLM_PROVIDER"] = "none"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -164,13 +160,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--resume", help="Path to a resume (.pdf or .txt)")
     p.add_argument("--max", type=int, default=8, help="Max results (default 8, up to 30)")
 
-    p.add_argument("--provider", choices=["anthropic", "openai", "none"],
+    p.add_argument("--provider", choices=["anthropic", "openai"],
                    help="Override LLM_PROVIDER")
     p.add_argument("--model", help="Override LLM_MODEL")
     p.add_argument("--base-url", dest="base_url",
                    help="Override LLM_BASE_URL (e.g. http://localhost:11434/v1 for Ollama)")
-    p.add_argument("--no-llm", action="store_true",
-                   help="Skip the model; return DuckDuckGo keyword results")
 
     p.add_argument("--out", help="Output directory (default: <repo>/output)")
     p.add_argument("--json", action="store_true", help="Also write results as JSON")
@@ -178,27 +172,18 @@ def build_parser() -> argparse.ArgumentParser:
 
     # Hooks for agentic CLIs (Claude Code / Codex) driving the finder as a skill.
     p.add_argument("--brief", action="store_true",
-                   help="Print the search queries + profile as JSON (for an agent to search), then exit")
+                   help="Print the normalized profile as JSON (for an agent to search), then exit")
     p.add_argument("--render", metavar="CARDS_JSON",
                    help="Render a cards JSON file (list of {title,url,summary,why_match}) to an HTML report")
     return p
 
 
 def _emit_brief(args: argparse.Namespace) -> None:
-    """Print what to search for, so an agent can run the searches with its own tools."""
+    """Print the profile so an agent can find opportunities with its own web tools."""
     profile, _ = _load_profile(args)
-    queries = build_queries(
-        category=profile.get("category", "Jobs"),
-        role=profile.get("role", ""),
-        field=profile.get("field", ""),
-        location=profile.get("location", ""),
-        background=profile.get("background", ""),
-        year=datetime.date.today().year,
-    )
     brief = {
         "category": profile.get("category", "Jobs"),
         "max_results": args.max,
-        "queries": queries,
         "profile": {k: profile.get(k, "") for k in
                     ("role", "field", "location", "background", "goals", "context", "resume_text")},
     }
@@ -244,12 +229,21 @@ def run(argv: list[str] | None = None) -> Path:
     cfg = llm.load_config()
     if cfg.warning:
         print(f"Note: {cfg.warning}", file=sys.stderr)
-    print(f"Backend: {cfg.provider}" + (f" ({cfg.model})" if cfg.enabled else ""))
+    if not cfg.enabled:
+        print(
+            "No model configured. Set a backend — e.g. ANTHROPIC_API_KEY (Claude), "
+            "OPENAI_API_KEY, or LLM_BASE_URL for a local model — or pass "
+            "--provider/--model/--base-url.",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+    print(f"Backend: {cfg.provider} ({cfg.model})")
 
-    result = find_opportunities(profile, cfg=cfg, max_results=args.max)
-    print(f"Mode: {result.mode}")
-    if result.queries:
-        print(f"Searched {len(result.queries)} queries -> {result.candidate_count} candidates")
+    try:
+        result = find_opportunities(profile, cfg=cfg, max_results=args.max)
+    except RuntimeError as e:
+        print(str(e), file=sys.stderr)
+        sys.exit(1)
     print(f"Found {len(result.cards)} opportunities.\n")
 
     out_dir = Path(args.out) if args.out else Path(__file__).parent.parent / "output"

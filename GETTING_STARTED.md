@@ -14,10 +14,10 @@ pip install -r requirements.txt
 | OpenAI | `pip install "openai>=1.0.0"` | `LLM_PROVIDER=openai`, `OPENAI_API_KEY=...` |
 | Local model (Ollama) | `pip install "openai>=1.0.0"` | `LLM_PROVIDER=openai`, `LLM_BASE_URL=http://localhost:11434/v1`, `LLM_MODEL=llama3.1` |
 | Local model (LM Studio) | `pip install "openai>=1.0.0"` | `LLM_PROVIDER=openai`, `LLM_BASE_URL=http://localhost:1234/v1`, `LLM_MODEL=<loaded-model>` |
-| No model (keyword only) | nothing extra | pass `--no-llm` |
 
 Put the configuration in a `.env` file (copy `.env.example`) or your shell
-environment. With no backend configured the finder still runs in keyword mode.
+environment. A model is required — it's what finds and explains the opportunities.
+Claude (native web search) gives the most current results.
 
 ## 2. Tell the finder about you  **pick one**
 
@@ -60,7 +60,6 @@ python -m finder.cli --profile profile.json
 --resume     path to a resume (.pdf or .txt) to add to your context
 --max N      number of results (default 8)
 --provider / --model / --base-url   override the backend for this run
---no-llm     skip the model; return DuckDuckGo keyword results
 --json       also write results as JSON
 --no-open    don't open the report in a browser
 --out DIR    where to write the report (default: ./output)
@@ -69,7 +68,7 @@ python -m finder.cli --profile profile.json
 Prefer a form over the terminal? Run the web app instead:
 
 ```
-streamlit run finder/app.py
+python -m finder.server      # http://127.0.0.1:5000
 ```
 
 Full flag list: `python -m finder.cli -h`.

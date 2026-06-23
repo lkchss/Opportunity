@@ -114,7 +114,6 @@ PRESETS: dict[str, dict] = {
                           "local": True},
     "OpenRouter": {"provider": "openai", "base_url": "https://openrouter.ai/api/v1"},
     "Custom (OpenAI-compatible)": {"provider": "openai", "base_url": ""},
-    "None (keyword only)": {"provider": "none"},
 }
 
 MODEL_HINTS = {
@@ -128,10 +127,8 @@ MODEL_HINTS = {
 
 def _preset_for(cfg: llm.LLMConfig) -> str:
     """Best-guess preset for the environment-derived config."""
-    if cfg.provider == "anthropic":
+    if cfg.provider == "anthropic" or cfg.provider == "none":
         return "Claude (Anthropic)"
-    if cfg.provider == "none":
-        return "None (keyword only)"
     b = (cfg.base_url or "").lower()
     if "11434" in b:
         return "Ollama (local)"
@@ -155,10 +152,6 @@ def _backend_sidebar() -> llm.LLMConfig:
     choice = st.sidebar.selectbox("Backend", names, index=names.index(default))
     preset = PRESETS[choice]
     provider = preset["provider"]
-
-    if provider == "none":
-        st.sidebar.caption("No model — results are raw DuckDuckGo hits.")
-        return llm.LLMConfig("none", "", None, None)
 
     if provider == "anthropic":
         model = st.sidebar.text_input(

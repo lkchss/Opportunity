@@ -4,7 +4,6 @@
 # Installs the core + the web app. Add ONE model backend below (or none).
 
 # --- Core (always needed) ---
-ddgs>=6.0.0                # web search (no API key; formerly duckduckgo_search)
 python-dotenv>=1.0.0       # reads .env
 pypdf>=4.0.0               # parse an uploaded résumé / context PDF
 
@@ -16,12 +15,10 @@ gunicorn>=21.2.0           # production server (deploy); dev uses Flask's built-
 # An alternative to the Flask web app; not required by the CLI or the web app.
 # streamlit>=1.32.0
 
-# --- Pick ONE model backend (optional) ---
-# Claude API:
+# --- Pick a model backend (REQUIRED — the model is the engine) ---
+# Claude API (uses Claude's native web search for real, current listings):
 #   pip install "anthropic>=0.40.0"
 #
 # OpenAI, or any OpenAI-compatible server — covers OpenAI, OpenRouter, Groq,
 # Together, Ollama (http://localhost:11434/v1), LM Studio, vLLM, llama.cpp:
 #   pip install "openai>=1.0.0"
-#
-# No model (DuckDuckGo keyword results only): install nothing extra.

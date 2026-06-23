@@ -7,10 +7,10 @@ Describe yourself; get ranked, explained opportunities.
 ## How it works
 
 1. **You describe yourself:** a few fields, a document (PDF or text), or both.
-2. **The model writes the searches:** It reads your profile + context and decides
-   what to query.
-3. **The model ranks candidates:** Weights against your profile and explains each fit.
-4. **Results:** Ranked opportunity cards in the web app, or an HTML report.
+2. **The model finds the matches:** Claude searches the live web; other models draw
+   on what they know. The model is the engine — there's no keyword scrape.
+3. **It explains each pick:** why this opportunity fits *you*, with a link.
+4. **Results:** ranked opportunity cards in the web app, or an HTML report.
 
 ## Two ways to run
 
@@ -27,13 +27,13 @@ Jump to: [Install](#1-install) · [Choose a backend](#2-choose-a-backend) ·
 ## 1. Install
 
 ```bash
-pip install -r requirements.txt   # core: search + report
+pip install -r requirements.txt   # core + web app
 ```
 
-Then add **one** model backend (or none):
+Then add **one** model backend — a model is required:
 
 ```bash
-pip install "anthropic>=0.40.0"   # Claude API
+pip install "anthropic>=0.40.0"   # Claude API (recommended — native web search)
 pip install "openai>=1.0.0"       # OpenAI, OpenRouter, Groq, Ollama, LM Studio, ...
 ```
 
@@ -45,14 +45,14 @@ pip install "openai>=1.0.0"       # OpenAI, OpenRouter, Groq, Ollama, LM Studio,
 | **OpenAI** | `LLM_PROVIDER=openai` `OPENAI_API_KEY=sk-...` |
 | **Local model (Ollama)** | `LLM_PROVIDER=openai` `LLM_BASE_URL=http://localhost:11434/v1` `LLM_MODEL=llama3.1` |
 | **Local model (LM Studio)** | `LLM_PROVIDER=openai` `LLM_BASE_URL=http://localhost:1234/v1` `LLM_MODEL=<loaded-model>` |
-| **No model** (keyword only) | `LLM_PROVIDER=none` |
 
-- **Web app:** set these in the sidebar at run time (or in `.env` as defaults).
-- **CLI:** put them in a `.env` file (copy `.env.example`), your shell environment,
+- **Web app:** pick the backend in the page (it pre-fills from `.env`).
+- **CLI:** put these in a `.env` file (copy `.env.example`), your shell environment,
   or pass `--provider/--model/--base-url` on the command.
 
-With `anthropic`, Claude also runs its own native web search; set
-`ANTHROPIC_WEB_SEARCH=0` to rank DuckDuckGo results instead.
+Claude searches the live web for real, currently-open listings. Other models
+discover from their training knowledge, so they can be less current — Claude (or an
+agent CLI with its own web access) is recommended for live results.
 
 ---
 
@@ -62,11 +62,10 @@ With `anthropic`, Claude also runs its own native web search; set
 python -m finder.server          # http://127.0.0.1:5000
 ```
 
-Upload a context document (PDF or text) **and/or** fill in the details — they count
+Pick the model under **Model** (the picker pre-fills from the server's `.env`),
+upload a context document (PDF or text) **and/or** fill in the details — they count
 equally — and click **Find opportunities**. The fields adapt to what you're looking
-for (no "role/title" for grad school, fellowships, gap years, or travel). The model
-backend is set server-side via the environment (see [Choose a backend](#2-choose-a-backend));
-with none configured it returns keyword results.
+for (no "role/title" for grad school, fellowships, gap years, or travel).
 
 Frontend lives in `finder/web/` (plain HTML/CSS/JS); the API is `POST /api/find`.
 Deploy with `gunicorn finder.server:app` (honors `$PORT`).
@@ -81,11 +80,7 @@ python -m finder.cli --category Jobs --role "data analyst" --location Remote \
   --goals "entry-level remote data role" --max 8
 ```
 
-No backend configured? It still runs in keyword-only mode:
-
-```bash
-python -m finder.cli --no-llm --category Jobs --goals "remote entry-level data role"
-```
+The backend comes from your environment (`.env` / shell) or `--provider/--model/--base-url`.
 
 **Don't want to type flags?** Write a paragraph about yourself in `context.txt`
 (or save a `profile.json`) and just run `python -m finder.cli` — it auto-detects
@@ -130,9 +125,9 @@ The in-repo files expose `/opportunity` only when the CLI is opened in this repo
 To get it in **every** project, copy the launcher into your personal command dir too
 — `~/.claude/commands/` (Claude Code) or `~/.config/opencode/command/` (opencode).
 
-Under the hood the agent uses two keyless helper commands — `python -m finder.cli
---brief` (prints the search queries + your profile as JSON) and `python -m finder.cli
---render cards.json` (writes the standard HTML report from the agent's picks).
+Under the hood the agent uses two helper commands — `python -m finder.cli --brief`
+(prints your profile as JSON) and `python -m finder.cli --render cards.json` (writes
+the standard HTML report from the agent's picks).
 
 ## Layout
 
@@ -145,9 +140,7 @@ finder/
   portal.py     # Streamlit profile builder -> profile.json
   run.py        # convenience: run the CLI from a saved profile.json
   pipeline.py   # profile -> ranked cards (shared by web app + CLI)
-  llm.py        # provider-agnostic model layer (anthropic / openai-compatible / none)
-  scraper.py    # DuckDuckGo search (the keyless universal backend)
-  queries.py    # builds search queries from the profile
+  llm.py        # the engine — finds + explains opportunities (anthropic / openai-compatible)
   report.py     # renders the HTML report
 tests/
 ```

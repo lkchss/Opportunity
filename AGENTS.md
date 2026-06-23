@@ -25,13 +25,13 @@ is one source of truth. If your CLI has no slash-command system, open it in this
 repo and say *"read `prompts/opportunity.md` and follow it."*
 
 The workflow uses two keyless helper commands: `python -m finder.cli --brief`
-(emit search queries + profile as JSON) and `python -m finder.cli --render cards.json`
+(emit the normalized profile as JSON) and `python -m finder.cli --render cards.json`
 (write the standard HTML report from your picks).
 
 ## Run it normally (its own backend)
 
 The tool can also do the model work itself via a configured backend
-(`LLM_PROVIDER` = anthropic / openai-compatible / local / none). See `README.md`.
+(`LLM_PROVIDER` = anthropic / openai-compatible / local). See `README.md`.
 `python -m finder.cli -h` lists every flag.
 
 ## Conventions
