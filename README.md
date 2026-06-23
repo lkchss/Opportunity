@@ -99,22 +99,30 @@ input). Output is an HTML report (and optional JSON) written to `output/`.
 
 ---
 
-## Use it inside Claude Code / Codex (no API key)
+## Use it from any agent CLI — `/opportunity` (no API key)
 
-You can also run the finder from an agentic CLI, where **the agent is the model** —
-it searches and ranks with its own tools, on your existing Claude/ChatGPT
-subscription, so no separate API key is needed.
+Run the finder inside an agentic CLI, where **the agent is the model** — it searches
+and ranks with its own tools, on whatever subscription you're already in, so no
+separate API key is needed. Summon it explicitly with **`/opportunity`** (optionally
+followed by what you're looking for):
 
-- **Claude Code** — open this repo and ask it to "find opportunities". It loads the
-  skill at [`.claude/skills/opportunity-finder/`](.claude/skills/opportunity-finder/SKILL.md):
-  it reads your `context.txt`/`profile.json`, web-searches, ranks, and renders the
-  report via `python -m finder.cli --render cards.json`.
-- **Codex CLI** (and other agents) — guidance lives in [`AGENTS.md`](AGENTS.md),
-  read automatically.
+```
+/opportunity remote data-analyst roles for an econ grad with Python/SQL
+```
 
-Under the hood the agent uses two keyless helper commands: `--brief` (prints the
-search queries + your profile as JSON) and `--render cards.json` (writes the
-standard HTML report from the agent's picks).
+The workflow is one prompt — [`prompts/opportunity.md`](prompts/opportunity.md) —
+that each CLI loads from its own command directory:
+
+| CLI | `/opportunity` lives at |
+|---|---|
+| **Claude Code** | `.claude/commands/opportunity.md` — already in the repo |
+| **opencode** | `.opencode/command/opportunity.md` — already in the repo |
+| **Codex CLI** | copy `prompts/opportunity.md` → `~/.codex/prompts/opportunity.md` |
+| **Other / open-source CLIs** | point a custom command at `prompts/opportunity.md`, or just tell the agent: *"read `prompts/opportunity.md` and follow it"* |
+
+Under the hood the agent uses two keyless helper commands — `python -m finder.cli
+--brief` (prints the search queries + your profile as JSON) and `python -m finder.cli
+--render cards.json` (writes the standard HTML report from the agent's picks).
 
 ## Layout
 

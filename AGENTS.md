@@ -4,27 +4,29 @@ Guidance for agentic CLIs (Codex CLI, Claude Code, and any agent that can run a
 shell and search the web). This repo is a small Python tool; you can run it
 normally **or** drive it as a skill where *you* are the model.
 
-## Run it as a skill (no API key)
+## The `/opportunity` command (no API key)
 
-When the user asks you to find opportunities (jobs, internships, grad school,
-fellowships, gap-year programs, travel/volunteer), act as the Opportunity Finder
-using your own web-search and reasoning — no model API key needed.
+The canonical workflow lives in **`prompts/opportunity.md`** — one self-contained
+prompt that makes you (the agent) act as the Opportunity Finder using your own
+web search + reasoning. No model API key or backend needed.
 
-1. **Profile.** Read `profile.json` / `context.txt` / `context.md` / a résumé in
-   the working folder, or ask for: category, role/field/location (skip "role" for
-   grad school, fellowships, gap year, and travel/volunteer), background, goals.
-2. **Brief (optional).** `python -m finder.cli --brief [--category ... --role ... --goals ...]`
-   prints suggested search `queries` + the normalized profile as JSON. Refine them.
-3. **Search + rank — your job.** Use your web tools to find currently-open, real
-   opportunities. Prefer official sources over aggregators, verify links resolve,
-   never invent URLs, dedupe. Pick the best N (default 8, up to 30). For each:
-   `title`, `url`, `summary`, `why_match`.
-4. **Render.** Write the picks to `cards.json` (a JSON array of those objects),
-   then `python -m finder.cli --render cards.json --category "<category>"` to
-   produce the standard HTML report in `output/`. Summarize the top picks inline.
+Summon it explicitly with **`/opportunity`** (not by phrasing). Each CLI loads the
+same prompt from its own command directory:
 
-`--brief` and `--render` need no API key or model backend — they're pure
-scaffolding; the intelligence is the agent.
+| CLI | Command file (→ `/opportunity`) |
+|---|---|
+| **Claude Code** | `.claude/commands/opportunity.md` (in-repo, already here) |
+| **opencode** | `.opencode/command/opportunity.md` (in-repo, already here) |
+| **Codex CLI** | copy `prompts/opportunity.md` → `~/.codex/prompts/opportunity.md` |
+| **Other agent CLIs** | point a custom command/prompt at `prompts/opportunity.md`, or just tell the agent: "follow prompts/opportunity.md" |
+
+The launchers are thin — they read `prompts/opportunity.md` and follow it, so there
+is one source of truth. If your CLI has no slash-command system, open it in this
+repo and say *"read `prompts/opportunity.md` and follow it."*
+
+The workflow uses two keyless helper commands: `python -m finder.cli --brief`
+(emit search queries + profile as JSON) and `python -m finder.cli --render cards.json`
+(write the standard HTML report from your picks).
 
 ## Run it normally (its own backend)
 
