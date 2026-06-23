@@ -26,6 +26,44 @@ from finder.pipeline import find_opportunities
 
 load_dotenv()
 
+# Visual + voice borrowed from "Opportunity: Law": cream paper, marigold accent,
+# Source Serif 4 display over IBM Plex Sans, and the signature marigold colon.
+STYLE = """
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap');
+
+:root { --accent:#8a6515; --ink:#1c1917; --soft:#635c4f; --paper:#fbf9f4; }
+
+.stApp { background: var(--paper); }
+html, body, .stApp, [class*="st-"], button, input, textarea, select {
+  font-family: 'IBM Plex Sans', -apple-system, "Segoe UI", sans-serif;
+}
+h1, h2, h3 {
+  font-family: 'Source Serif 4', Georgia, serif !important;
+  font-weight: 700; letter-spacing: -0.015em; color: var(--ink);
+}
+
+.op-brand { font-family: 'Source Serif 4', Georgia, serif; font-weight: 700;
+  font-size: 20px; letter-spacing: -0.01em; color: var(--ink); }
+.op-display { font-family: 'Source Serif 4', Georgia, serif; font-weight: 700;
+  font-size: 40px; line-height: 1.1; letter-spacing: -0.02em; color: var(--ink);
+  margin: 6px 0 10px; }
+.op-display .colon { color: var(--accent); }
+.op-lede { font-size: 15px; line-height: 1.55; color: var(--soft);
+  max-width: 660px; margin: 0; }
+
+.stButton > button { border-radius: 8px; font-weight: 600; }
+</style>
+"""
+
+MASTHEAD = """
+<div class="op-brand">Opportunity</div>
+<div class="op-display">What should you do next<span class="colon">:</span></div>
+<p class="op-lede">Tell us a little about yourself. We'll search the web and rank
+real, currently-open opportunities by how well they fit your background and goals —
+and tell you why each one makes the list.</p>
+"""
+
 CATEGORIES = [
     "Jobs",
     "Internships",
@@ -163,9 +201,9 @@ def _backend_sidebar() -> llm.LLMConfig:
 
 
 def run() -> None:
-    st.set_page_config(page_title="Opportunity Finder", layout="wide")
-    st.title("Opportunity Finder")
-    st.caption("Tell us about you — the more detail you give, the better the matches.")
+    st.set_page_config(page_title="Opportunity", layout="wide")
+    st.markdown(STYLE, unsafe_allow_html=True)
+    st.markdown(MASTHEAD, unsafe_allow_html=True)
 
     cfg = _backend_sidebar()
 
@@ -174,8 +212,8 @@ def run() -> None:
     specs = FIELD_SPECS[category]
 
     with st.form("profile"):
-        st.markdown("**Give the model your context** — upload a document, fill in the "
-                    "details, or both. They count equally.")
+        st.markdown("Tell us about yourself — upload a document, fill in the details, "
+                    "or both. They count equally.")
 
         doc_file = st.file_uploader(
             "Upload a context document (PDF or text)",
@@ -240,8 +278,8 @@ def run() -> None:
 
     result = st.session_state.get("result")
     if result and result.cards:
-        st.caption(f"Source: {result.mode}")
-        st.subheader(f"Top {len(result.cards)} matches")
+        st.subheader("Your matches")
+        st.caption(f"{len(result.cards)} opportunities · {result.mode}")
         for r in result.cards:
             with st.container(border=True):
                 st.markdown(f"### [{r['title']}]({r['url']})")

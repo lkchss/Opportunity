@@ -12,8 +12,8 @@ venv/
 .env
 .env.local
 
-# Streamlit
-.streamlit/
+# Streamlit (keep the committed theme; ignore secrets only)
+.streamlit/secrets.toml
 
 # IDE
 .vscode/

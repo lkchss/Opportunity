@@ -1,0 +1,7 @@
+# Opportunity — matches the "Opportunity: Law" palette (cream / marigold / ink).
+[theme]
+base = "light"
+primaryColor = "#8a6515"
+backgroundColor = "#fbf9f4"
+secondaryBackgroundColor = "#fffdf8"
+textColor = "#1c1917"
