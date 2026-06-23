@@ -96,12 +96,21 @@ input). Output is an HTML report (and optional JSON) written to `output/`.
 
 ## Use it from any agent CLI — `/opportunity` (no API key)
 
-Run the finder inside an agentic CLI; summon it explicitly with **`/opportunity`** 
+Run the finder inside an agentic CLI; summon it explicitly with **`/opportunity`** —
+pass a context file, a freeform request, or both:
 
 ```
+/opportunity [context-file]  [what you're looking for]
+
 /opportunity remote data-analyst roles for an econ grad with Python/SQL
 /opportunity profile.md ways to spend a gap year
+/opportunity resume.pdf software internships in NYC
+/opportunity                       # reads context.txt / profile.json, or asks you
 ```
+
+The agent reads any file you name as your profile/context, then searches and ranks
+with its own tools — on whatever subscription you're already in, so no API key is
+needed.
 
 The workflow is one prompt — [`prompts/opportunity.md`](prompts/opportunity.md) —
 that each CLI loads from its own command directory:

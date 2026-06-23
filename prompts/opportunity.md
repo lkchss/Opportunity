@@ -6,13 +6,18 @@ model backend are needed** — it runs on whatever CLI/subscription you're alrea
 in. Run the shell commands below from the root of the opportunity-finder repo
 (where the `finder/` package lives).
 
-If the user typed a request after `/opportunity`, treat that as their brief and
-skip straight to gathering only what's still missing.
+**Arguments.** Anything after `/opportunity` is the brief. If a token is a path to a
+readable file (e.g. `profile.md`, `resume.pdf`, `context.txt`), read it as the
+person's profile/context. Treat the remaining words as the request — the category
+and/or keywords (e.g. `profile.md ways to spend a gap year`, `resume.pdf software
+internships in NYC`). Use whatever the arguments provide and only gather what's
+still missing; if there are no arguments, fall back to step 1.
 
 ## 1. Get the person's profile
 
-Look in the current folder, in order, for: `profile.json`, `context.txt`,
-`context.md`, or a résumé PDF — read whatever exists. If nothing is there, ask for:
+Use the file named in the arguments if there was one; otherwise look in the current
+folder, in order, for: `profile.json`, `context.txt`, `context.md`, or a résumé PDF
+— read whatever exists. If there's still nothing, ask for:
 
 - **Category** — one of: Jobs, Internships, Graduate school,
   Fellowships / Scholarships, Gap year programs, Travel / Volunteer.
