@@ -1,0 +1,24 @@
+# Opportunity Finder — minimal install.
+#   pip install -r requirements.txt
+#
+# This installs the CORE only (search + report, no model). Add ONE backend below.
+
+# --- Core (always needed) ---
+ddgs>=6.0.0                # web search (no API key; formerly duckduckgo_search)
+python-dotenv>=1.0.0       # reads .env
+pypdf>=4.0.0               # optional: parse a resume PDF
+
+# --- Optional GUI ---
+# Only needed for the Streamlit app (streamlit run finder/app.py). The CLI
+# (python -m finder.cli) does not require it.
+streamlit>=1.32.0
+
+# --- Pick ONE model backend (optional) ---
+# Claude API:
+#   pip install "anthropic>=0.40.0"
+#
+# OpenAI, or any OpenAI-compatible server — covers OpenAI, OpenRouter, Groq,
+# Together, Ollama (http://localhost:11434/v1), LM Studio, vLLM, llama.cpp:
+#   pip install "openai>=1.0.0"
+#
+# No model (DuckDuckGo keyword results only): install nothing extra.
