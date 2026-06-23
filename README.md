@@ -1,30 +1,37 @@
-# Opportunity Finder
+# Opportunity
 
-Describe yourself, get ranked, explained opportunities — jobs, internships, grad
-school, fellowships, gap years, travel. **Bring your own model**: Claude, an
-OpenAI-compatible API, a local open-source model, or no model at all.
+Ironically, finding ways to spend your time is time-intensive. Opportunity allows for a reduction in search-costs.
 
-The finder separates **search** from **reasoning**:
+Describe yourself, get ranked, explained opportunities: jobs, internships, grad
+school, fellowships, gap years, travel.
 
-- **Search** uses DuckDuckGo — no API key, works everywhere.
-- **Reasoning** (ranking + "why it fits") is a model *you* choose. Because the
-  model never needs a built-in web-search tool, any chat model can do it.
+## How it works
+
+The finder splits **search** from **reasoning** — that split is what lets you
+bring any model.
+
+1. **You describe yourself** — a few fields, a résumé, or a paragraph of context.
+2. **Search (DuckDuckGo).** Your profile becomes a set of queries; DuckDuckGo
+   returns candidate listings. No API key, works everywhere.
+3. **Reasoning (your model).** The model you chose ranks those candidates against
+   your profile and writes a short "why this fits" for each. Because it only
+   reasons over text the search already found, the model never needs a built-in
+   web tool — so Claude, OpenAI, or a local model all work the same. (With Claude
+   you can instead let it run its own native web search; with **no** model you get
+   the raw keyword hits, unranked.)
+4. **Results.** Opportunity cards in the web app, or an HTML report — plus optional
+   JSON — from the CLI.
+
+Everything runs on your machine. The only things that leave it are the search
+queries (to DuckDuckGo) and, if you pick a hosted model, your profile text (to that
+provider). A local model (Ollama / LM Studio) keeps it all offline.
 
 ## Two ways to run
 
-You can use the finder either way — they share the same engine and the same model
-backends, so results are identical:
-
-- **🖥️ Web app (Streamlit)** — a form in your browser, with a sidebar to pick the
+- **Web app** — a form in your browser, with a sidebar to pick the
   model. Best if you'd rather click than type.
-- **⌨️ Command line** — `python -m finder.cli`. Best for quick runs, scripting, or
+- **CLI** — `python -m finder.cli`. Best for quick runs, scripting, or
   staying in the terminal.
-
-> **Does the web app use the model too?** Yes. Both the web app and the CLI use
-> whichever backend you choose (Claude / OpenAI-compatible / local / none) for
-> ranking and explanations. The only difference is *how you select it*: the web
-> app has a sidebar picker; the CLI reads environment variables or flags. With no
-> backend, both fall back to keyword-only search.
 
 Jump to: [Install](#1-install) · [Choose a backend](#2-choose-a-backend) ·
 [Web app](#3a-run-the-web-app) · [Command line](#3b-run-the-cli)
@@ -34,7 +41,7 @@ Jump to: [Install](#1-install) · [Choose a backend](#2-choose-a-backend) ·
 ## 1. Install
 
 ```bash
-pip install -r requirements.txt   # core: search + report (Streamlit included)
+pip install -r requirements.txt   # core: search + report
 ```
 
 Then add **one** model backend (or none):
@@ -42,14 +49,9 @@ Then add **one** model backend (or none):
 ```bash
 pip install "anthropic>=0.40.0"   # Claude API
 pip install "openai>=1.0.0"       # OpenAI, OpenRouter, Groq, Ollama, LM Studio, ...
-# or install nothing → keyword-only mode
 ```
 
 ## 2. Choose a backend
-
-This applies to **both** the web app and the CLI. The `openai` provider speaks the
-OpenAI-compatible `/v1/chat/completions` API, so `LLM_BASE_URL` covers OpenAI,
-OpenRouter, Groq, Together, DeepSeek, Ollama, LM Studio, vLLM, and llama.cpp.
 
 | You want… | Settings |
 |---|---|
@@ -121,5 +123,3 @@ finder/
   report.py     # renders the HTML report
 tests/
 ```
-
-Python 3.11+. Never commit `.env` or API keys.
