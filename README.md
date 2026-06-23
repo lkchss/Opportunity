@@ -16,15 +16,9 @@ bring any model.
 3. **Reasoning (your model).** The model you chose ranks those candidates against
    your profile and writes a short "why this fits" for each. Because it only
    reasons over text the search already found, the model never needs a built-in
-   web tool — so Claude, OpenAI, or a local model all work the same. (With Claude
-   you can instead let it run its own native web search; with **no** model you get
-   the raw keyword hits, unranked.)
+   web tool — so Claude, OpenAI, or a local model all work the same. 
 4. **Results.** Opportunity cards in the web app, or an HTML report — plus optional
    JSON — from the CLI.
-
-Everything runs on your machine. The only things that leave it are the search
-queries (to DuckDuckGo) and, if you pick a hosted model, your profile text (to that
-provider). A local model (Ollama / LM Studio) keeps it all offline.
 
 ## Two ways to run
 

@@ -1,16 +1,12 @@
 # Getting started
 
-You ran the Opportunity Finder without enough information about you. Here's how
-to give it what it needs.
+You ran Opportunity without enough information about you. Lets fix that.
 
 ## 1. Install the dependencies
 
 ```
 pip install -r requirements.txt
 ```
-
-That's the core (search + report). For ranking + explanations, add **one** model
-backend - or skip it and use keyword-only mode:
 
 | Backend | Install | Configure |
 |---|---|---|
@@ -23,15 +19,15 @@ backend - or skip it and use keyword-only mode:
 Put the configuration in a `.env` file (copy `.env.example`) or your shell
 environment. With no backend configured the finder still runs in keyword mode.
 
-## 2. Tell the finder about you - pick one
+## 2. Tell the finder about you  **pick one**
 
-**A. A context file (easiest).** Write a paragraph about yourself in a plain-text
+**A. Context file** Write a paragraph about yourself in a plain-text
 file and drop it next to where you run the command. The finder auto-detects
 `context.txt`, `context.md`, or `profile.json` in the current folder:
 
 ```
 # context.txt
-I'm a recent economics grad in Chicago with Python and SQL. Looking for an
+I'm a recent economics grad in Chicago with experience using Python and SQL. Looking for an
 entry-level, remote data-analyst role. Open to relocating to the Bay Area.
 ```
 
