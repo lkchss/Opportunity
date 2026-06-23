@@ -26,13 +26,13 @@ from finder.pipeline import find_opportunities
 
 load_dotenv()
 
-# Visual + voice borrowed from "Opportunity: Law": cream paper, marigold accent,
-# Source Serif 4 display over IBM Plex Sans, and the signature marigold colon.
+# Type + voice borrowed from "Opportunity: Law" (Source Serif 4 display over IBM
+# Plex Sans), but black & white.
 STYLE = """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap');
 
-:root { --accent:#8a6515; --ink:#1c1917; --soft:#635c4f; --paper:#fbf9f4; }
+:root { --ink:#111111; --soft:#555555; --paper:#ffffff; }
 
 .stApp { background: var(--paper); }
 html, body, .stApp, [class*="st-"], button, input, textarea, select {
@@ -48,7 +48,6 @@ h1, h2, h3 {
 .op-display { font-family: 'Source Serif 4', Georgia, serif; font-weight: 700;
   font-size: 40px; line-height: 1.1; letter-spacing: -0.02em; color: var(--ink);
   margin: 6px 0 10px; }
-.op-display .colon { color: var(--accent); }
 .op-lede { font-size: 15px; line-height: 1.55; color: var(--soft);
   max-width: 660px; margin: 0; }
 
@@ -58,7 +57,7 @@ h1, h2, h3 {
 
 MASTHEAD = """
 <div class="op-brand">Opportunity</div>
-<div class="op-display">What should you do next<span class="colon">:</span></div>
+<div class="op-display">What should you do next</div>
 <p class="op-lede">Tell us a little about yourself. We'll search the web and rank
 real, currently-open opportunities by how well they fit your background and goals —
 and tell you why each one makes the list.</p>
