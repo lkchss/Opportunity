@@ -6,11 +6,11 @@ Describe yourself, get ranked, explained opportunities.
 
 ## How it works
 
-1. **You describe yourself** — a few fields, a résumé, or a paragraph of context.
-2. **Search (DuckDuckGo).** Your profile becomes a set of queries; DuckDuckGo
-   returns candidate listings. No API key, works everywhere.
-3. **Reasoning** LLM ranks candidates against your profile's parameters.  
-4. **Results.** Displays ranked opportunities in web app or html.
+1. **You describe yourself** — a few fields, a document (PDF or text), or both.
+2. **The model writes the searches.** It reads your profile + context and decides
+   what to query; DuckDuckGo runs them (no API key). With no model, templates do this.
+3. **The model ranks** the candidates against your profile and explains each pick.
+4. **Results.** Ranked opportunity cards in the web app, or an HTML report.
 
 ## Two ways to run
 
@@ -62,9 +62,10 @@ With `anthropic`, Claude also runs its own native web search; set
 streamlit run finder/app.py
 ```
 
-Fill in the form (what you're looking for, role/field/location, background, goals,
-optional résumé), pick a model in the sidebar, and click **Find opportunities**.
-You can download your inputs as `profile.json` to reuse later.
+Upload a context document (PDF or text) **and/or** fill in the details (category,
+role/field/location, background, goals) — they count equally. Pick a model in the
+sidebar, then click **Find opportunities**. You can download your inputs as
+`profile.json` to reuse later.
 
 Prefer to build a reusable profile first? `streamlit run finder/portal.py` saves a
 `profile.json` you can feed to the CLI with `--profile`.

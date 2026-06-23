@@ -124,6 +124,33 @@ def test_search_collects_and_dedupes(monkeypatch):
     assert [r.url for r in out] == ["http://x", "http://y"]  # deduped across queries
 
 
+def test_profile_block_includes_context():
+    block = llm._profile_block({"category": "Jobs", "context": "I love wildlife conservation"})
+    assert "Context document:" in block
+    assert "wildlife conservation" in block
+
+
+def test_extract_str_list():
+    assert llm._extract_str_list('here you go: ["a b", "c", 3] thanks') == ["a b", "c", "3"]
+    assert llm._extract_str_list("no array here") == []
+
+
+def test_generate_queries_requires_backend():
+    cfg = llm.LLMConfig("none", "", None, None)
+    with pytest.raises(RuntimeError):
+        llm.generate_queries({"goals": "x"}, cfg=cfg)
+
+
+def test_cli_context_flag_routes_to_context_field(tmp_path):
+    doc = tmp_path / "me.txt"
+    doc.write_text("Economics grad, Python and SQL.", encoding="utf-8")
+    args = cli.build_parser().parse_args(["--context", str(doc)])
+    profile, src = cli._load_profile(args)
+    assert profile["context"].startswith("Economics grad")
+    assert not profile.get("background")  # context is its own field, not background
+    assert src == str(doc)
+
+
 def test_cli_render_agent_cards(tmp_path):
     cards = tmp_path / "cards.json"
     cards.write_text(json.dumps(

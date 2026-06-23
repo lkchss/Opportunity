@@ -122,6 +122,8 @@ def _profile_block(profile: dict[str, Any]) -> str:
         parts.append(f"Location: {profile['location']}")
     if profile.get("resume_text"):
         parts.append(f"Resume:\n{profile['resume_text']}")
+    if profile.get("context"):
+        parts.append(f"Context document:\n{profile['context']}")
     if profile.get("background"):
         parts.append(f"Background:\n{profile['background']}")
     if profile.get("goals"):
@@ -153,6 +155,31 @@ def _extract_json(text: str) -> list[Card]:
                 }
             )
     return out
+
+
+def _extract_str_list(text: str) -> list[str]:
+    """Pull a JSON array of strings (search queries) out of a model reply."""
+    start = text.find("[")
+    end = text.rfind("]")
+    if start == -1 or end == -1:
+        return []
+    try:
+        data = json.loads(text[start : end + 1])
+    except json.JSONDecodeError:
+        return []
+    if not isinstance(data, list):
+        return []
+    return [str(q).strip() for q in data if isinstance(q, (str, int, float)) and str(q).strip()]
+
+
+QUERIES_SYSTEM = (
+    "You write web-search queries that will surface concrete, currently-open "
+    "opportunities for a person. Given their profile and any context document, "
+    "output the search queries most likely to find real, official listings. "
+    "Keep each query short and natural (the words a person would type). Cover the "
+    "distinct angles implied by their background and goals. "
+    "Return ONLY a JSON array of query strings — no prose."
+)
 
 
 def _candidate_block(candidates: list[dict[str, Any]], limit: int) -> str:
@@ -219,6 +246,18 @@ def _anthropic_discover(cfg: LLMConfig, profile: dict, max_results: int) -> list
     return _extract_json(_anthropic_text(response))[:max_results]
 
 
+def _anthropic_queries(cfg: LLMConfig, profile: dict, n: int) -> list[str]:
+    client = _anthropic_client(cfg)
+    prompt = f"{_profile_block(profile)}\n\nWrite up to {n} search queries. Return a JSON array of strings only."
+    response = client.messages.create(
+        model=cfg.model,
+        max_tokens=1024,
+        system=QUERIES_SYSTEM,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return _extract_str_list(_anthropic_text(response))[:n]
+
+
 # --- OpenAI-compatible (covers local OSS models too) -------------------------
 
 def _openai_client(cfg: LLMConfig):
@@ -255,7 +294,36 @@ def _openai_rank(cfg: LLMConfig, profile: dict, candidates: list[dict], max_resu
     return _extract_json(response.choices[0].message.content or "")[:max_results]
 
 
+def _openai_queries(cfg: LLMConfig, profile: dict, n: int) -> list[str]:
+    client = _openai_client(cfg)
+    prompt = f"{_profile_block(profile)}\n\nWrite up to {n} search queries. Return a JSON array of strings only."
+    response = client.chat.completions.create(
+        model=cfg.model,
+        max_tokens=1024,
+        messages=[
+            {"role": "system", "content": QUERIES_SYSTEM},
+            {"role": "user", "content": prompt},
+        ],
+    )
+    return _extract_str_list(response.choices[0].message.content or "")[:n]
+
+
 # --- Public API --------------------------------------------------------------
+
+
+def generate_queries(
+    profile: dict[str, Any],
+    *,
+    cfg: LLMConfig | None = None,
+    n: int = 6,
+) -> list[str]:
+    """Have the model author the web-search queries from the profile + context."""
+    cfg = cfg or load_config()
+    if cfg.provider == "anthropic":
+        return _anthropic_queries(cfg, profile, n)
+    if cfg.provider == "openai":
+        return _openai_queries(cfg, profile, n)
+    raise RuntimeError("generate_queries called with provider=none")
 
 def rank_opportunities(
     candidates: list[dict[str, Any]],

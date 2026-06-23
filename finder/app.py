@@ -174,6 +174,16 @@ def run() -> None:
     specs = FIELD_SPECS[category]
 
     with st.form("profile"):
+        st.markdown("**Give the model your context** — upload a document, fill in the "
+                    "details, or both. They count equally.")
+
+        doc_file = st.file_uploader(
+            "Upload a context document (PDF or text)",
+            type=["pdf", "txt", "md"],
+            help="A résumé, a bio, notes on what you want — anything. Weighted the "
+            "same as the fields below; the model reads it to search and rank.",
+        )
+
         keys = list(specs.keys())
         cols = st.columns(len(keys))
         values: dict[str, str] = {}
@@ -191,19 +201,22 @@ def run() -> None:
             height=110,
             placeholder="Ideal outcome and constraints (timing, location, compensation).",
         )
-        resume_file = st.file_uploader("Resume (optional PDF)", type=["pdf"])
         max_results = st.slider("Number of results", 3, 30, 8)
 
         submitted = st.form_submit_button("Find opportunities", type="primary")
 
     if submitted:
-        resume_text = ""
-        if resume_file is not None:
-            reader = pypdf.PdfReader(io.BytesIO(resume_file.read()))
-            resume_text = "\n".join(page.extract_text() or "" for page in reader.pages)
+        context_text = ""
+        if doc_file is not None:
+            if doc_file.name.lower().endswith(".pdf"):
+                reader = pypdf.PdfReader(io.BytesIO(doc_file.read()))
+                context_text = "\n".join(page.extract_text() or "" for page in reader.pages)
+            else:
+                context_text = doc_file.read().decode("utf-8", errors="replace")
+            st.caption(f"Loaded {doc_file.name} ({len(context_text):,} chars) as context.")
 
-        if not (goals or background or resume_text):
-            st.warning("Add at least your goals plus some background (or a resume).")
+        if not (goals or background or context_text):
+            st.warning("Upload a document, or fill in your goals plus some background.")
         elif cfg.enabled and not cfg.model:
             st.warning("Enter a model name for the selected backend in the sidebar.")
         else:
@@ -214,7 +227,7 @@ def run() -> None:
                 "location": values.get("location", ""),
                 "background": background,
                 "goals": goals,
-                "resume_text": resume_text,
+                "context": context_text,
             }
             with st.spinner("Searching..."):
                 try:

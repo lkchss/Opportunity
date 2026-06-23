@@ -76,7 +76,7 @@ def _autodetect() -> tuple[dict, str] | None:
             continue
         if p.suffix.lower() == ".json":
             return json.loads(p.read_text(encoding="utf-8")), name
-        return {"background": _read_doc(name)}, name
+        return {"context": _read_doc(name)}, name
     return None
 
 
@@ -87,7 +87,7 @@ def _load_profile(args: argparse.Namespace) -> tuple[dict, str | None]:
         profile = json.loads(Path(args.profile).read_text(encoding="utf-8"))
         src = args.profile
     elif args.context:
-        profile = {"background": _read_doc(args.context)}
+        profile = {"context": _read_doc(args.context)}
         src = args.context
     elif not _has_flag_input(args):
         # Nothing explicit — try a file in the current directory.
@@ -111,7 +111,10 @@ def _has_flag_input(args: argparse.Namespace) -> bool:
 
 
 def _profile_has_content(profile: dict) -> bool:
-    return bool(profile.get("goals") or profile.get("background") or profile.get("resume_text"))
+    return bool(
+        profile.get("goals") or profile.get("background")
+        or profile.get("resume_text") or profile.get("context")
+    )
 
 
 def _print_guide() -> None:
@@ -197,7 +200,7 @@ def _emit_brief(args: argparse.Namespace) -> None:
         "max_results": args.max,
         "queries": queries,
         "profile": {k: profile.get(k, "") for k in
-                    ("role", "field", "location", "background", "goals", "resume_text")},
+                    ("role", "field", "location", "background", "goals", "context", "resume_text")},
     }
     print(json.dumps(brief, indent=2))
 

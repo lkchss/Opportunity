@@ -1,10 +1,12 @@
 """Profile -> ranked opportunity cards. Shared by the CLI and the Streamlit app.
 
-One flow, three behaviors depending on the configured backend:
+One flow, behaviors depending on the configured backend:
 
   anthropic (+ native web search)  → Claude searches the web and curates directly.
-  any LLM backend                  → DuckDuckGo finds candidates, the LLM ranks them.
-  none                             → DuckDuckGo results, unranked (keyword only).
+  any LLM backend                  → the model writes the search queries from the
+                                     profile + context, DuckDuckGo runs them, then
+                                     the model ranks the results.
+  none                             → template queries -> DuckDuckGo, unranked.
 """
 from __future__ import annotations
 
@@ -53,28 +55,40 @@ def find_opportunities(
         cards = llm.discover_opportunities(profile, cfg=cfg, max_results=max_results)
         return PipelineResult(cards=cards, mode="anthropic-web-search")
 
-    # Path 2 & 3: DuckDuckGo finds candidates first.
-    queries = build_queries(
-        category=profile.get("category", "Jobs"),
-        role=profile.get("role", ""),
-        field=profile.get("field", ""),
-        location=profile.get("location", ""),
-        background=profile.get("background", ""),
-        year=datetime.date.today().year,
-    )
+    use_llm = cfg.enabled and not force_keyword
+
+    # Queries: the model authors them from the profile + context when a backend is
+    # set (so the model decides what to search); deterministic templates otherwise,
+    # and as a fallback if the model returns nothing.
+    queries: list[str] = []
+    if use_llm:
+        try:
+            queries = llm.generate_queries(profile, cfg=cfg)
+        except Exception:
+            queries = []
+    if not queries:
+        queries = build_queries(
+            category=profile.get("category", "Jobs"),
+            role=profile.get("role", ""),
+            field=profile.get("field", ""),
+            location=profile.get("location", ""),
+            background=profile.get("background", ""),
+            year=datetime.date.today().year,
+        )
+
     results = ddg_search(queries)
     candidates = [
         {"title": r.title, "url": r.url, "snippet": r.snippet, "query": r.query}
         for r in results
     ]
 
-    if cfg.enabled and not force_keyword:
+    if use_llm:
         cards = llm.rank_opportunities(
             candidates, profile, cfg=cfg, max_results=max_results
         )
         return PipelineResult(
             cards=cards,
-            mode="ddg+llm-rank",
+            mode="ai-search+rank",
             queries=queries,
             candidate_count=len(candidates),
         )

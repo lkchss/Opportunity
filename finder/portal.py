@@ -76,14 +76,17 @@ def run() -> None:
         placeholder="What you're looking for, constraints, ideal outcome.",
     )
 
-    resume_text = existing.get("resume_text", "")
-    resume_file = st.file_uploader("Resume (optional PDF)", type=["pdf"])
-    if resume_file is not None:
-        reader = pypdf.PdfReader(io.BytesIO(resume_file.read()))
-        resume_text = "\n".join(page.extract_text() or "" for page in reader.pages)
-        st.success(f"Resume loaded — {len(reader.pages)} page(s)")
-    elif resume_text:
-        st.info("Resume loaded from saved profile.")
+    context_text = existing.get("context", existing.get("resume_text", ""))
+    doc_file = st.file_uploader("Context document (PDF or text)", type=["pdf", "txt", "md"])
+    if doc_file is not None:
+        if doc_file.name.lower().endswith(".pdf"):
+            reader = pypdf.PdfReader(io.BytesIO(doc_file.read()))
+            context_text = "\n".join(page.extract_text() or "" for page in reader.pages)
+        else:
+            context_text = doc_file.read().decode("utf-8", errors="replace")
+        st.success(f"Loaded {doc_file.name} ({len(context_text):,} chars)")
+    elif context_text:
+        st.info("Context document loaded from saved profile.")
 
     if st.button("Save profile", type="primary"):
         profile = {
@@ -93,7 +96,7 @@ def run() -> None:
             "location": location,
             "background": background,
             "goals": goals,
-            "resume_text": resume_text,
+            "context": context_text,
         }
         save_profile(profile)
         st.success(
