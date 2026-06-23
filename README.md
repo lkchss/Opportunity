@@ -120,6 +120,10 @@ that each CLI loads from its own command directory:
 | **Codex CLI** | copy `prompts/opportunity.md` → `~/.codex/prompts/opportunity.md` |
 | **Other / open-source CLIs** | point a custom command at `prompts/opportunity.md`, or just tell the agent: *"read `prompts/opportunity.md` and follow it"* |
 
+The in-repo files expose `/opportunity` only when the CLI is opened in this repo.
+To get it in **every** project, copy the launcher into your personal command dir too
+— `~/.claude/commands/` (Claude Code) or `~/.config/opencode/command/` (opencode).
+
 Under the hood the agent uses two keyless helper commands — `python -m finder.cli
 --brief` (prints the search queries + your profile as JSON) and `python -m finder.cli
 --render cards.json` (writes the standard HTML report from the agent's picks).
