@@ -1,9 +1,11 @@
 """Unit tests that touch no network and no model API."""
 from __future__ import annotations
 
+import json
+
 import pytest
 
-from finder import llm
+from finder import cli, llm
 from finder.queries import build_queries
 from finder.report import render
 
@@ -120,6 +122,25 @@ def test_search_collects_and_dedupes(monkeypatch):
     monkeypatch.setattr(scraper, "DDGS", _FakeDDGS)
     out = scraper.search(["a", "b", "c"])
     assert [r.url for r in out] == ["http://x", "http://y"]  # deduped across queries
+
+
+def test_cli_render_agent_cards(tmp_path):
+    cards = tmp_path / "cards.json"
+    cards.write_text(json.dumps(
+        [{"title": "Analyst", "url": "https://x.test", "summary": "s", "why_match": "w"}]
+    ), encoding="utf-8")
+    out = cli.run(["--render", str(cards), "--no-open", "--out", str(tmp_path), "--category", "Jobs"])
+    assert out.exists() and out.suffix == ".html"
+    assert "Analyst" in out.read_text(encoding="utf-8")
+
+
+def test_cli_brief_emits_queries(capsys):
+    with pytest.raises(SystemExit) as exc:
+        cli.run(["--brief", "--category", "Jobs", "--role", "data analyst", "--goals", "x"])
+    assert exc.value.code == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["category"] == "Jobs"
+    assert data["queries"]
 
 
 def test_report_render_escapes_html(tmp_path):

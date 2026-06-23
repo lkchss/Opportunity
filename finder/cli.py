@@ -37,6 +37,7 @@ from dotenv import load_dotenv
 
 from finder import llm
 from finder.pipeline import find_opportunities
+from finder.queries import build_queries
 from finder.report import render
 
 CATEGORIES = [
@@ -171,13 +172,64 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--out", help="Output directory (default: <repo>/output)")
     p.add_argument("--json", action="store_true", help="Also write results as JSON")
     p.add_argument("--no-open", action="store_true", help="Do not open the report in a browser")
+
+    # Hooks for agentic CLIs (Claude Code / Codex) driving the finder as a skill.
+    p.add_argument("--brief", action="store_true",
+                   help="Print the search queries + profile as JSON (for an agent to search), then exit")
+    p.add_argument("--render", metavar="CARDS_JSON",
+                   help="Render a cards JSON file (list of {title,url,summary,why_match}) to an HTML report")
     return p
+
+
+def _emit_brief(args: argparse.Namespace) -> None:
+    """Print what to search for, so an agent can run the searches with its own tools."""
+    profile, _ = _load_profile(args)
+    queries = build_queries(
+        category=profile.get("category", "Jobs"),
+        role=profile.get("role", ""),
+        field=profile.get("field", ""),
+        location=profile.get("location", ""),
+        background=profile.get("background", ""),
+        year=datetime.date.today().year,
+    )
+    brief = {
+        "category": profile.get("category", "Jobs"),
+        "max_results": args.max,
+        "queries": queries,
+        "profile": {k: profile.get(k, "") for k in
+                    ("role", "field", "location", "background", "goals", "resume_text")},
+    }
+    print(json.dumps(brief, indent=2))
+
+
+def _render_cards(args: argparse.Namespace) -> Path:
+    """Render an agent-produced cards JSON to the same HTML report the tool emits."""
+    data = json.loads(Path(args.render).read_text(encoding="utf-8"))
+    cards = data.get("cards", data) if isinstance(data, dict) else data
+    if not isinstance(cards, list):
+        raise SystemExit("--render expects a JSON list of cards, or {\"cards\": [...]}.")
+    out_dir = Path(args.out) if args.out else Path(__file__).parent.parent / "output"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    out_path = out_dir / f"results_{stamp}.html"
+    render(cards, args.category or "Opportunities", args.goals or "", out_path, mode="agent")
+    print(f"Report saved: {out_path}")
+    if not args.no_open:
+        webbrowser.open(out_path.as_uri())
+    return out_path
 
 
 def run(argv: list[str] | None = None) -> Path:
     load_dotenv()
     args = build_parser().parse_args(argv)
     _apply_backend_overrides(args)
+
+    # Agent hooks: render an agent's results, or hand it the search brief.
+    if args.render:
+        return _render_cards(args)
+    if args.brief:
+        _emit_brief(args)
+        sys.exit(0)
 
     profile, src = _load_profile(args)
     if not _profile_has_content(profile):

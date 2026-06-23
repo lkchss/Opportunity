@@ -99,6 +99,23 @@ input). Output is an HTML report (and optional JSON) written to `output/`.
 
 ---
 
+## Use it inside Claude Code / Codex (no API key)
+
+You can also run the finder from an agentic CLI, where **the agent is the model** —
+it searches and ranks with its own tools, on your existing Claude/ChatGPT
+subscription, so no separate API key is needed.
+
+- **Claude Code** — open this repo and ask it to "find opportunities". It loads the
+  skill at [`.claude/skills/opportunity-finder/`](.claude/skills/opportunity-finder/SKILL.md):
+  it reads your `context.txt`/`profile.json`, web-searches, ranks, and renders the
+  report via `python -m finder.cli --render cards.json`.
+- **Codex CLI** (and other agents) — guidance lives in [`AGENTS.md`](AGENTS.md),
+  read automatically.
+
+Under the hood the agent uses two keyless helper commands: `--brief` (prints the
+search queries + your profile as JSON) and `--render cards.json` (writes the
+standard HTML report from the agent's picks).
+
 ## Layout
 
 ```
