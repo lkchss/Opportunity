@@ -16,8 +16,8 @@ pip install -r requirements.txt
 | Local model (LM Studio) | `pip install "openai>=1.0.0"` | `LLM_PROVIDER=openai`, `LLM_BASE_URL=http://localhost:1234/v1`, `LLM_MODEL=<loaded-model>` |
 
 Put the configuration in a `.env` file (copy `.env.example`) or your shell
-environment. A model is required — it's what finds and explains the opportunities.
-Claude (native web search) gives the most current results.
+environment. A model is required — DuckDuckGo finds candidate listings and your
+model ranks + explains them (the raw results are never shown).
 
 ## 2. Tell the finder about you  **pick one**
 

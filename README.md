@@ -7,9 +7,10 @@ Describe yourself; get ranked, explained opportunities.
 ## How it works
 
 1. **You describe yourself:** a few fields, a document (PDF or text), or both.
-2. **The model finds the matches:** Claude searches the live web; other models draw
-   on what they know. The model is the engine — there's no keyword scrape.
-3. **It explains each pick:** why this opportunity fits *you*, with a link.
+2. **The model writes the searches; the web answers:** it turns your profile into
+   queries and DuckDuckGo finds candidate listings.
+3. **The model ranks + explains them:** never the raw scrape — it curates the best
+   fits and says why each one fits *you*.
 4. **Results:** ranked opportunity cards in the web app, or an HTML report.
 
 ## Two ways to run
@@ -33,7 +34,7 @@ pip install -r requirements.txt   # core + web app
 Then add **one** model backend — a model is required:
 
 ```bash
-pip install "anthropic>=0.40.0"   # Claude API (recommended — native web search)
+pip install "anthropic>=0.40.0"   # Claude API
 pip install "openai>=1.0.0"       # OpenAI, OpenRouter, Groq, Ollama, LM Studio, ...
 ```
 
@@ -50,9 +51,10 @@ pip install "openai>=1.0.0"       # OpenAI, OpenRouter, Groq, Ollama, LM Studio,
 - **CLI:** put these in a `.env` file (copy `.env.example`), your shell environment,
   or pass `--provider/--model/--base-url` on the command.
 
-Claude searches the live web for real, currently-open listings. Other models
-discover from their training knowledge, so they can be less current — Claude (or an
-agent CLI with its own web access) is recommended for live results.
+DuckDuckGo provides the web search (no key); your model writes the queries and ranks
+the results. Any chat model works — Claude, OpenAI, or a local one — because the
+model never needs its own web tool. The raw search results are never shown; the model
+always curates them.
 
 ---
 
@@ -139,8 +141,10 @@ finder/
   app.py        # alternative Streamlit UI (in-app backend picker)
   portal.py     # Streamlit profile builder -> profile.json
   run.py        # convenience: run the CLI from a saved profile.json
-  pipeline.py   # profile -> ranked cards (shared by web app + CLI)
-  llm.py        # the engine — finds + explains opportunities (anthropic / openai-compatible)
+  pipeline.py   # profile -> queries -> search -> ranked cards (shared by web app + CLI)
+  llm.py        # the model layer — writes queries + ranks results (anthropic / openai-compatible)
+  scraper.py    # DuckDuckGo web search (keyless)
+  queries.py    # template-query fallback
   report.py     # renders the HTML report
 tests/
 ```

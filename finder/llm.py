@@ -1,24 +1,26 @@
 """Provider-agnostic LLM layer for the Opportunity Finder.
 
-The model IS the engine: given a person's profile, it finds and explains
-opportunities directly. There is no separate web-scrape step — the value is the
-model's reasoning, not a keyword dump.
+The finder separates SEARCH (DuckDuckGo — universal, no key) from REASON (this
+module — pluggable). That split is what makes the tool backend-agnostic: the
+model never needs a built-in web-search tool, so any chat model can rank the
+DuckDuckGo candidates.
 
-  anthropic → Claude runs its native `web_search` tool (real, currently-open
-              listings) and curates them.
-  openai    → any OpenAI-compatible chat model (OpenAI, OpenRouter, Groq, Ollama,
-              LM Studio, vLLM, llama.cpp via LLM_BASE_URL) discovers from its
-              knowledge. Without live web access it can be less current, so it is
-              told to prefer real, official sources and never fabricate URLs.
+Three backends, selected entirely by environment variables:
 
-Config comes from the environment (or is passed in explicitly):
-
-    LLM_PROVIDER = anthropic | openai      (auto-detected from whichever key is set)
-    LLM_MODEL    = model id (provider-specific defaults below)
-    LLM_BASE_URL = base URL override — the lever for local / alternative hosts
+    LLM_PROVIDER = anthropic | openai | none   (default: auto-detected, see below)
+    LLM_MODEL    = model id (provider-specific; see defaults below)
+    LLM_BASE_URL = override base URL — this is the lever for local / alternative hosts
     LLM_API_KEY  = api key (falls back to ANTHROPIC_API_KEY / OPENAI_API_KEY)
 
-SDKs are imported lazily, so a user who only wants Ollama never installs
+The `openai` provider speaks the OpenAI-compatible /v1/chat/completions API, so a
+single code path covers OpenAI, OpenRouter, Groq, Together, DeepSeek, **Ollama**
+(LLM_BASE_URL=http://localhost:11434/v1), **LM Studio**, vLLM, and llama.cpp — set
+LLM_BASE_URL to point at whichever one you run.
+
+A model is required — the scrape results are always ranked + explained by the LLM,
+never published raw. `none` means "unconfigured".
+
+SDKs are imported lazily, so a user who only wants Ollama never has to install
 `anthropic`, and vice versa.
 """
 from __future__ import annotations
@@ -28,7 +30,6 @@ import os
 from dataclasses import dataclass
 from typing import Any
 
-WEB_SEARCH_TOOL = "web_search_20260209"  # Claude native web search (Opus 4.6+/Sonnet 4.6)
 DEFAULT_ANTHROPIC_MODEL = "claude-opus-4-8"
 DEFAULT_OPENAI_MODEL = "gpt-4o-mini"
 
@@ -37,7 +38,7 @@ Card = dict[str, str]
 
 @dataclass
 class LLMConfig:
-    provider: str  # "anthropic" | "openai" | "none" (none = unconfigured)
+    provider: str  # "anthropic" | "openai" | "none"
     model: str
     base_url: str | None
     api_key: str | None
@@ -45,7 +46,7 @@ class LLMConfig:
 
     @property
     def enabled(self) -> bool:
-        return self.provider in ("anthropic", "openai")
+        return self.provider != "none"
 
 
 def _detect_provider() -> str:
@@ -64,8 +65,9 @@ def load_config() -> LLMConfig:
     provider = _detect_provider()
     warning: str | None = None
     if provider not in ("anthropic", "openai", "none"):
+        # Don't hard-crash on a typo or stale value — treat as unconfigured.
         warning = (
-            f"Unknown LLM_PROVIDER={provider!r}. Set it to anthropic or openai."
+            f"Unknown LLM_PROVIDER={provider!r}. Set LLM_PROVIDER to anthropic or openai."
         )
         provider = "none"
 
@@ -82,7 +84,7 @@ def load_config() -> LLMConfig:
         api_key = explicit_key or os.environ.get("OPENAI_API_KEY")
         if not api_key and base_url:
             api_key = "not-needed"
-    else:  # none — unconfigured
+    else:  # none
         model, api_key = "", None
 
     return LLMConfig(
@@ -90,15 +92,11 @@ def load_config() -> LLMConfig:
     )
 
 
-DISCOVER_SYSTEM = (
-    "You are an opportunity-matching assistant. Given a person's background, goals, "
-    "and category, find concrete, currently-open opportunities that genuinely fit "
-    "them — jobs, internships, graduate programs, fellowships, gap-year programs, or "
-    "travel/volunteer programs as the category dictates. Prefer official sources "
-    "(employer career pages, university admissions, program sites) over aggregators. "
-    "If you are not certain a specific posting is currently open, name the program or "
-    "organization and link its official site rather than inventing a deep link. "
-    "Never fabricate URLs. For each pick, explain why it fits this person specifically. "
+SYSTEM = (
+    "You are an opportunity-matching assistant. Given a user's background, goals, and "
+    "category, and a list of candidate web results, select the ones that genuinely fit "
+    "the user and explain why. Prefer official sources (employer career pages, "
+    "university admissions, program sites) over aggregators. "
     'Return ONLY a JSON array. Each item: {"title": str, "url": str, "summary": str, '
     '"why_match": str}. No prose outside the JSON.'
 )
@@ -149,14 +147,42 @@ def _extract_json(text: str) -> list[Card]:
     return out
 
 
-def _prompt(profile: dict, max_results: int) -> str:
-    return (
-        f"{_profile_block(profile)}\n\nFind up to {max_results} opportunities that fit. "
-        f"Return a JSON array only."
-    )
+def _extract_str_list(text: str) -> list[str]:
+    """Pull a JSON array of strings (search queries) out of a model reply."""
+    start = text.find("[")
+    end = text.rfind("]")
+    if start == -1 or end == -1:
+        return []
+    try:
+        data = json.loads(text[start : end + 1])
+    except json.JSONDecodeError:
+        return []
+    if not isinstance(data, list):
+        return []
+    return [str(q).strip() for q in data if isinstance(q, (str, int, float)) and str(q).strip()]
 
 
-# --- Anthropic (native web search) -------------------------------------------
+QUERIES_SYSTEM = (
+    "You write web-search queries that will surface concrete, currently-open "
+    "opportunities for a person. Given their profile and any context document, "
+    "output the search queries most likely to find real, official listings. "
+    "Keep each query short and natural (the words a person would type). Cover the "
+    "distinct angles implied by their background and goals. "
+    "Return ONLY a JSON array of query strings — no prose."
+)
+
+
+def _candidate_block(candidates: list[dict[str, Any]], limit: int) -> str:
+    lines = []
+    for i, c in enumerate(candidates[:limit], 1):
+        title = c.get("title", "")
+        url = c.get("url", "")
+        snippet = c.get("snippet", "")
+        lines.append(f"[{i}] {title}\n    {url}\n    {snippet}")
+    return "\n".join(lines)
+
+
+# --- Anthropic ---------------------------------------------------------------
 
 def _anthropic_client(cfg: LLMConfig):
     try:
@@ -172,19 +198,38 @@ def _anthropic_client(cfg: LLMConfig):
     return Anthropic(api_key=cfg.api_key)
 
 
-def _anthropic_discover(cfg: LLMConfig, profile: dict, max_results: int) -> list[Card]:
+def _anthropic_text(response: Any) -> str:
+    return "\n".join(
+        b.text for b in response.content if getattr(b, "type", None) == "text"
+    )
+
+
+def _anthropic_rank(cfg: LLMConfig, profile: dict, candidates: list[dict], max_results: int) -> list[Card]:
     client = _anthropic_client(cfg)
+    prompt = (
+        f"{_profile_block(profile)}\n\nCandidate results:\n"
+        f"{_candidate_block(candidates, max_results * 4)}\n\n"
+        f"Pick up to {max_results} that best fit the user. Return JSON array only."
+    )
     response = client.messages.create(
         model=cfg.model,
         max_tokens=4096,
-        system=DISCOVER_SYSTEM,
-        tools=[{"type": WEB_SEARCH_TOOL, "name": "web_search", "max_uses": 5}],
-        messages=[{"role": "user", "content": _prompt(profile, max_results)}],
+        system=SYSTEM,
+        messages=[{"role": "user", "content": prompt}],
     )
-    text = "\n".join(
-        b.text for b in response.content if getattr(b, "type", None) == "text"
+    return _extract_json(_anthropic_text(response))[:max_results]
+
+
+def _anthropic_queries(cfg: LLMConfig, profile: dict, n: int) -> list[str]:
+    client = _anthropic_client(cfg)
+    prompt = f"{_profile_block(profile)}\n\nWrite up to {n} search queries. Return a JSON array of strings only."
+    response = client.messages.create(
+        model=cfg.model,
+        max_tokens=1024,
+        system=QUERIES_SYSTEM,
+        messages=[{"role": "user", "content": prompt}],
     )
-    return _extract_json(text)[:max_results]
+    return _extract_str_list(_anthropic_text(response))[:n]
 
 
 # --- OpenAI-compatible (covers local OSS models too) -------------------------
@@ -203,36 +248,68 @@ def _openai_client(cfg: LLMConfig):
     return OpenAI(api_key=cfg.api_key, base_url=cfg.base_url)
 
 
-def _openai_discover(cfg: LLMConfig, profile: dict, max_results: int) -> list[Card]:
+def _openai_rank(cfg: LLMConfig, profile: dict, candidates: list[dict], max_results: int) -> list[Card]:
     client = _openai_client(cfg)
+    prompt = (
+        f"{_profile_block(profile)}\n\nCandidate results:\n"
+        f"{_candidate_block(candidates, max_results * 4)}\n\n"
+        f"Pick up to {max_results} that best fit the user. Return JSON array only."
+    )
     # No response_format / json_object: many local servers (Ollama, llama.cpp)
     # reject it. Instruct + parse defensively instead.
     response = client.chat.completions.create(
         model=cfg.model,
         max_tokens=4096,
         messages=[
-            {"role": "system", "content": DISCOVER_SYSTEM},
-            {"role": "user", "content": _prompt(profile, max_results)},
+            {"role": "system", "content": SYSTEM},
+            {"role": "user", "content": prompt},
         ],
     )
     return _extract_json(response.choices[0].message.content or "")[:max_results]
 
 
+def _openai_queries(cfg: LLMConfig, profile: dict, n: int) -> list[str]:
+    client = _openai_client(cfg)
+    prompt = f"{_profile_block(profile)}\n\nWrite up to {n} search queries. Return a JSON array of strings only."
+    response = client.chat.completions.create(
+        model=cfg.model,
+        max_tokens=1024,
+        messages=[
+            {"role": "system", "content": QUERIES_SYSTEM},
+            {"role": "user", "content": prompt},
+        ],
+    )
+    return _extract_str_list(response.choices[0].message.content or "")[:n]
+
+
 # --- Public API --------------------------------------------------------------
 
-def discover_opportunities(
+
+def generate_queries(
+    profile: dict[str, Any],
+    *,
+    cfg: LLMConfig | None = None,
+    n: int = 6,
+) -> list[str]:
+    """Have the model author the web-search queries from the profile + context."""
+    cfg = cfg or load_config()
+    if cfg.provider == "anthropic":
+        return _anthropic_queries(cfg, profile, n)
+    if cfg.provider == "openai":
+        return _openai_queries(cfg, profile, n)
+    raise RuntimeError("generate_queries called with provider=none")
+
+def rank_opportunities(
+    candidates: list[dict[str, Any]],
     profile: dict[str, Any],
     *,
     cfg: LLMConfig | None = None,
     max_results: int = 8,
 ) -> list[Card]:
-    """Find + explain opportunities with the configured model."""
+    """Rank DuckDuckGo candidates into curated opportunity cards via the LLM."""
     cfg = cfg or load_config()
     if cfg.provider == "anthropic":
-        return _anthropic_discover(cfg, profile, max_results)
+        return _anthropic_rank(cfg, profile, candidates, max_results)
     if cfg.provider == "openai":
-        return _openai_discover(cfg, profile, max_results)
-    raise RuntimeError(
-        "No model configured. Choose a backend (Claude, OpenAI, or a local model) — "
-        "the finder needs an LLM."
-    )
+        return _openai_rank(cfg, profile, candidates, max_results)
+    raise RuntimeError("rank_opportunities called with provider=none")
