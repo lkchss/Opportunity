@@ -9,8 +9,8 @@ Describe yourself; get ranked, explained opportunities.
 1. **You describe yourself:** a few fields, a document (PDF or text), or both.
 2. **The model writes the searches; the web answers:** it turns your profile into
    queries and DuckDuckGo finds candidate listings.
-3. **The model ranks + explains them:** never the raw scrape — it curates the best
-   fits and says why each one fits *you*.
+3. **The model ranks + explains them:** curates the best
+   fits and gives a personalized summary.
 4. **Results:** ranked opportunity cards in the web app, or an HTML report.
 
 ## Two ways to run
@@ -31,7 +31,7 @@ Jump to: [Install](#1-install) · [Choose a backend](#2-choose-a-backend) ·
 pip install -r requirements.txt   # core + web app
 ```
 
-Then add **one** model backend — a model is required:
+Then add **one** model backend
 
 ```bash
 pip install "anthropic>=0.40.0"   # Claude API
@@ -50,12 +50,6 @@ pip install "openai>=1.0.0"       # OpenAI, OpenRouter, Groq, Ollama, LM Studio,
 - **Web app:** pick the backend in the page (it pre-fills from `.env`).
 - **CLI:** put these in a `.env` file (copy `.env.example`), your shell environment,
   or pass `--provider/--model/--base-url` on the command.
-
-DuckDuckGo provides the web search (no key); your model writes the queries and ranks
-the results. Any chat model works — Claude, OpenAI, or a local one — because the
-model never needs its own web tool. The raw search results are never shown; the model
-always curates them.
-
 ---
 
 ## 3a. Run the web app
@@ -63,11 +57,6 @@ always curates them.
 ```bash
 python -m finder.server          # http://127.0.0.1:5000
 ```
-
-Pick the model under **Model** (the picker pre-fills from the server's `.env`),
-upload a context document (PDF or text) **and/or** fill in the details — they count
-equally — and click **Find opportunities**. The fields adapt to what you're looking
-for (no "role/title" for grad school, fellowships, gap years, or travel).
 
 Frontend lives in `finder/web/` (plain HTML/CSS/JS); the API is `POST /api/find`.
 Deploy with `gunicorn finder.server:app` (honors `$PORT`).
