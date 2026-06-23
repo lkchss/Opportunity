@@ -1,17 +1,20 @@
-# Opportunity Finder — minimal install.
+# Opportunity Finder — install.
 #   pip install -r requirements.txt
 #
-# This installs the CORE only (search + report, no model). Add ONE backend below.
+# Installs the core + the web app. Add ONE model backend below (or none).
 
 # --- Core (always needed) ---
 ddgs>=6.0.0                # web search (no API key; formerly duckduckgo_search)
 python-dotenv>=1.0.0       # reads .env
-pypdf>=4.0.0               # optional: parse a resume PDF
+pypdf>=4.0.0               # parse an uploaded résumé / context PDF
 
-# --- Optional GUI ---
-# Only needed for the Streamlit app (streamlit run finder/app.py). The CLI
-# (python -m finder.cli) does not require it.
-streamlit>=1.32.0
+# --- Web app (python -m finder.server) ---
+flask>=3.0.0
+gunicorn>=21.2.0           # production server (deploy); dev uses Flask's built-in
+
+# --- Optional Streamlit UI (streamlit run finder/app.py) ---
+# An alternative to the Flask web app; not required by the CLI or the web app.
+# streamlit>=1.32.0
 
 # --- Pick ONE model backend (optional) ---
 # Claude API:

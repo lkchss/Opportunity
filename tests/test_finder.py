@@ -170,6 +170,36 @@ def test_cli_brief_emits_queries(capsys):
     assert data["queries"]
 
 
+def test_server_serves_page_and_api(monkeypatch):
+    from finder import server
+    from finder.pipeline import PipelineResult
+
+    client = server.app.test_client()
+
+    # serves the frontend
+    r = client.get("/")
+    assert r.status_code == 200
+    assert b"Opportunity" in r.data
+
+    # missing input -> 400
+    r = client.post("/api/find", data={"category": "Jobs"})
+    assert r.status_code == 400
+
+    # valid input -> cards (pipeline stubbed, no network)
+    monkeypatch.setattr(
+        server, "find_opportunities",
+        lambda profile, max_results=8: PipelineResult(
+            cards=[{"title": "X", "url": "http://x", "summary": "s", "why_match": "w"}],
+            mode="test",
+        ),
+    )
+    r = client.post("/api/find", data={"category": "Jobs", "goals": "remote data role"})
+    assert r.status_code == 200
+    body = r.get_json()
+    assert body["mode"] == "test"
+    assert body["cards"][0]["title"] == "X"
+
+
 def test_report_render_escapes_html(tmp_path):
     cards = [
         {

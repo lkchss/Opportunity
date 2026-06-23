@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Opportunity</title>
+<meta name="description" content="Describe yourself; get ranked, explained opportunities — jobs, internships, grad school, fellowships, gap years, travel." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="shell">
+    <div class="brand">Opportunity</div>
+
+    <header class="masthead">
+      <h1 class="display">What&rsquo;s next?</h1>
+    </header>
+
+    <form id="finder" autocomplete="off">
+      <label class="upload" for="doc">
+        <span class="pill">PDF / TXT</span>
+        <span class="u-text" id="doc-text"><strong>Upload a context document.</strong> A r&eacute;sum&eacute;, a bio, notes on what you want.</span>
+        <input id="doc" name="doc" type="file" accept=".pdf,.txt,.md" />
+      </label>
+
+      <div class="field">
+        <label class="label" for="cat">What are you looking for?</label>
+        <select id="cat" name="category">
+          <option>Jobs</option>
+          <option>Internships</option>
+          <option>Graduate school</option>
+          <option>Fellowships / Scholarships</option>
+          <option>Gap year programs</option>
+          <option>Travel / Volunteer</option>
+        </select>
+      </div>
+
+      <div class="row" id="detail-row"></div>
+
+      <div class="field">
+        <label class="label" for="bg">Your background</label>
+        <textarea id="bg" name="background" placeholder="Education, work experience, skills, etc."></textarea>
+      </div>
+
+      <div class="field">
+        <label class="label" for="goals">What you want</label>
+        <textarea id="goals" name="goals" placeholder="Ideal outcome and constraints (timing, location, compensation). Be as verbose as you&rsquo;d like &mdash; more context improves results."></textarea>
+      </div>
+
+      <button class="submit" id="submit" type="submit">Find opportunities</button>
+    </form>
+
+    <section id="results" aria-live="polite"></section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

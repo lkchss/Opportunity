@@ -59,16 +59,20 @@ With `anthropic`, Claude also runs its own native web search; set
 ## 3a. Run the web app
 
 ```bash
-streamlit run finder/app.py
+python -m finder.server          # http://127.0.0.1:5000
 ```
 
-Upload a context document (PDF or text) **and/or** fill in the details (category,
-role/field/location, background, goals) — they count equally. Pick a model in the
-sidebar, then click **Find opportunities**. You can download your inputs as
-`profile.json` to reuse later.
+Upload a context document (PDF or text) **and/or** fill in the details — they count
+equally — and click **Find opportunities**. The fields adapt to what you're looking
+for (no "role/title" for grad school, fellowships, gap years, or travel). The model
+backend is set server-side via the environment (see [Choose a backend](#2-choose-a-backend));
+with none configured it returns keyword results.
 
-Prefer to build a reusable profile first? `streamlit run finder/portal.py` saves a
-`profile.json` you can feed to the CLI with `--profile`.
+Frontend lives in `finder/web/` (plain HTML/CSS/JS); the API is `POST /api/find`.
+Deploy with `gunicorn finder.server:app` (honors `$PORT`).
+
+> A Streamlit UI (`streamlit run finder/app.py`, with an in-app backend picker) is
+> also included as an alternative; the Flask app above is the primary, styled one.
 
 ## 3b. Run the CLI
 
@@ -134,8 +138,10 @@ Under the hood the agent uses two keyless helper commands — `python -m finder.
 
 ```
 finder/
-  app.py        # Streamlit web app (backend picker in the sidebar)
+  server.py     # Flask web app — python -m finder.server (serves web/ + POST /api/find)
+  web/          # frontend: index.html, styles.css, app.js (black & white)
   cli.py        # command-line entry — python -m finder.cli
+  app.py        # alternative Streamlit UI (in-app backend picker)
   portal.py     # Streamlit profile builder -> profile.json
   run.py        # convenience: run the CLI from a saved profile.json
   pipeline.py   # profile -> ranked cards (shared by web app + CLI)
