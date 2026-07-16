@@ -7,10 +7,12 @@ that runs the matching algorithm against a posted profile.
 import hmac
 import math
 import os
+from html import escape as html_escape
 from pathlib import Path
 
 from flask import Flask, Response, jsonify, request, send_from_directory
 
+from law import analytics, seo
 from law.data_loader import DataValidationError, load_law_schools
 from law.matcher import rank_schools, transfer_up_plan, build_portfolio, _parse_user_weights
 
@@ -35,8 +37,36 @@ app = Flask(__name__, static_folder=str(WEB_DIR), static_url_path="")
 
 try:
     _SCHOOLS = load_law_schools()
+    _SCHOOLS_BY_ID = {s["id"]: s for s in _SCHOOLS}
 except (FileNotFoundError, DataValidationError) as exc:  # pragma: no cover
     raise SystemExit(f"Failed to load law school data: {exc}")
+
+
+def _is_public_path(path: str) -> bool:
+    """Public, crawlable marketing surface — never behind the site password.
+
+    The SEO landing pages are useless if gated (search engines can't read them),
+    so they stay open even when APP_PASSWORD gates the matcher app itself.
+    """
+    return (
+        path == "/law-schools"
+        or path.startswith("/law-schools/")
+        or path.startswith("/law-schools-in/")
+        or path in ("/sitemap.xml", "/robots.txt")
+    )
+
+
+def _base_url() -> str:
+    """Absolute site origin for canonical/OG/sitemap URLs.
+
+    Prefers SITE_BASE_URL; otherwise derives from the request, honoring the
+    proxy's X-Forwarded-Proto so canonicals are https on Render rather than http.
+    """
+    env = os.environ.get("SITE_BASE_URL")
+    if env:
+        return env.rstrip("/")
+    proto = request.headers.get("X-Forwarded-Proto", request.scheme)
+    return f"{proto}://{request.host}"
 
 
 @app.before_request
@@ -44,6 +74,8 @@ def _require_password() -> Response | None:
     """Gate every route behind a single shared password when one is configured."""
     if not _APP_PASSWORD:
         return None  # no password set — open (local dev)
+    if _is_public_path(request.path):
+        return None  # marketing pages are always public
     auth = request.authorization
     if auth is not None and auth.password is not None and hmac.compare_digest(
         auth.password, _APP_PASSWORD
@@ -54,6 +86,31 @@ def _require_password() -> Response | None:
         401,
         {"WWW-Authenticate": 'Basic realm="Law School Matcher"'},
     )
+
+
+# Static asset extensions safe to cache at the edge for a while.
+_STATIC_EXT = (".css", ".jsx", ".js", ".svg", ".png", ".ico", ".woff", ".woff2")
+
+
+@app.after_request
+def _headers(resp: Response) -> Response:
+    """Baseline security headers everywhere; modest caching for public assets.
+
+    Caching is only applied to the public, idempotent surfaces (SEO pages,
+    sitemap/robots, static files) — never to the matcher app shell or the API,
+    which must stay fresh and (when gated) private.
+    """
+    resp.headers.setdefault("X-Content-Type-Options", "nosniff")
+    resp.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    resp.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+
+    path = request.path
+    if request.method == "GET" and resp.status_code == 200 and "Cache-Control" not in resp.headers:
+        if _is_public_path(path):
+            resp.headers["Cache-Control"] = "public, max-age=3600"
+        elif path.endswith(_STATIC_EXT):
+            resp.headers["Cache-Control"] = "public, max-age=600"
+    return resp
 
 
 def _build_weighted_states(payload: dict) -> list[dict]:
@@ -174,7 +231,13 @@ def match():
         school["radar"] = [round(school[k]) for k in _RADAR_KEYS]
 
     transfer_plan = transfer_up_plan(profile, _SCHOOLS)
-    portfolio = build_portfolio(ranked)
+
+    # Apply-plan controls (optional). Unknown strategy falls back to balanced;
+    # absence reproduces the historical 2/4/3 slate.
+    strategy = str(payload.get("apply_strategy") or "balanced").lower()
+    include_hard = bool(payload.get("include_hard"))
+    portfolio = build_portfolio(ranked, profile=profile,
+                                strategy=strategy, include_hard=include_hard)
 
     return jsonify({
         "profile": profile,
@@ -182,6 +245,100 @@ def match():
         "transfer_plan": transfer_plan,
         "portfolio": portfolio,
     })
+
+
+@app.post("/api/event")
+def event() -> Response:
+    """Record one anonymous interaction event (feature usage only).
+
+    Accepts {"name": <allowlisted>, "label": <optional bounded>}. Anything not on
+    the allowlist is dropped by analytics.record. Always answers 204 — it never
+    errors the client and never reveals which names are valid.
+    """
+    payload = request.get_json(silent=True) or {}
+    analytics.record(payload.get("name"), payload.get("label"))
+    return Response(status=204)
+
+
+@app.get("/api/stats")
+def stats() -> Response:
+    """Anonymous usage counters as JSON (gated by the site password in prod)."""
+    return jsonify(analytics.snapshot())
+
+
+@app.get("/stats")
+def stats_page() -> Response:
+    """Minimal human-readable usage dashboard (same password gate as the site)."""
+    snap = analytics.snapshot()
+    rows = "".join(
+        f"<tr><td>{html_escape(k)}</td><td class='n'>{v}</td></tr>"
+        for k, v in snap["events"].items()
+    ) or "<tr><td colspan='2'>No events recorded yet.</td></tr>"
+    mins = round(snap["uptime_seconds"] / 60, 1)
+    body = (
+        "<!doctype html><meta charset='utf-8'>"
+        "<title>Usage stats</title>"
+        "<style>body{font:14px/1.5 system-ui,sans-serif;max-width:560px;margin:40px auto;"
+        "padding:0 16px;color:#29261b}h1{font-size:18px}table{border-collapse:collapse;"
+        "width:100%}td{padding:6px 10px;border-bottom:1px solid #eee}td.n{text-align:right;"
+        "font-variant-numeric:tabular-nums;font-weight:600}small{color:#888}</style>"
+        f"<h1>Usage stats</h1><small>This worker, up {mins} min. "
+        "Aggregate history lives in the stdout log stream.</small>"
+        f"<table>{rows}</table>"
+    )
+    return Response(body, mimetype="text/html")
+
+
+# ── SEO landing pages (server-rendered, public, crawlable) ───────────────────
+
+@app.get("/law-schools")
+def seo_index() -> Response:
+    return Response(seo.render_index(_SCHOOLS, _base_url()), mimetype="text/html")
+
+
+@app.get("/law-schools/<slug>")
+def seo_school(slug: str) -> Response:
+    school = _SCHOOLS_BY_ID.get(slug)
+    if school is None:
+        return Response("Law school not found.", status=404, mimetype="text/plain")
+    return Response(seo.render_school(school, _SCHOOLS, _base_url()), mimetype="text/html")
+
+
+@app.get("/law-schools-in/<state>")
+def seo_state(state: str) -> Response:
+    code = seo.state_from_slug(state)
+    if code is None:
+        return Response("State not found.", status=404, mimetype="text/plain")
+    return Response(seo.render_state(code, _SCHOOLS, _base_url()), mimetype="text/html")
+
+
+@app.get("/sitemap.xml")
+def sitemap() -> Response:
+    return Response(seo.render_sitemap(_SCHOOLS, _base_url()), mimetype="application/xml")
+
+
+@app.get("/robots.txt")
+def robots() -> Response:
+    return Response(seo.render_robots(_base_url()), mimetype="text/plain")
+
+
+@app.errorhandler(404)
+def not_found(_e) -> Response:
+    """API callers get JSON; people get a small branded page back to the app."""
+    if request.path.startswith("/api/"):
+        return jsonify({"error": "Not found"}), 404
+    body = (
+        "<!doctype html><meta charset='utf-8'>"
+        "<meta name='viewport' content='width=device-width,initial-scale=1'>"
+        "<title>Not found — Opportunity: Law</title>"
+        "<style>body{font:16px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;"
+        "color:#29261b;background:#faf9f7;max-width:520px;margin:18vh auto;padding:0 20px;"
+        "text-align:center}a{color:#2f7a50;font-weight:600}h1{font-size:22px}</style>"
+        "<h1>Page not found</h1>"
+        "<p>That page doesn’t exist. Try the <a href='/'>law school matcher</a> "
+        "or <a href='/law-schools'>browse all law schools</a>.</p>"
+    )
+    return Response(body, status=404, mimetype="text/html")
 
 
 if __name__ == "__main__":

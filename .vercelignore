@@ -1,0 +1,16 @@
+# Keep the Vercel deployment lean — only what the Flask function needs at
+# runtime (law/*.py, law/web/**, law/data/law_schools.json) ships. Everything
+# below is dev/build-time only and never imported or read by law.server.
+mvp/
+tests/
+eval/
+run_*.py
+algorithm_test_results*.txt
+law/data/raw/
+law/data/build_*.py
+law/data/*.xlsx
+render.yaml
+requirements.txt
+**/__pycache__/
+.pytest_cache/
+.git/

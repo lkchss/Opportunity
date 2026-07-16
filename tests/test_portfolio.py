@@ -122,7 +122,14 @@ class TestGracefulShrink:
     def test_empty_ranked_list_returns_empty_buckets(self):
         """build_portfolio on an empty list must return empty buckets without crashing."""
         pf = build_portfolio([])
-        assert pf == {"safeties": [], "targets": [], "reaches": []}
+        assert pf["safeties"] == []
+        assert pf["targets"] == []
+        assert pf["reaches"] == []
+        # Default (no profile/strategy) reproduces the historical balanced slate.
+        assert pf["strategy"] == "balanced"
+        assert pf["quota"] == {"safety": 2, "target": 4, "reach": 3}
+        assert pf["adapt_notes"] == []
+        assert "longshots" not in pf  # opt-in only
 
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,5 @@
+# Serverless function deps only — keeps the Vercel bundle small and cold starts
+# fast. The matcher is pure-Python + Flask; nothing else is needed at runtime.
+# (Do NOT let Vercel fall back to the repo-root requirements.txt, which carries
+# the heavy dev/MVP stack — streamlit, anthropic, etc.)
+flask>=3.0.0

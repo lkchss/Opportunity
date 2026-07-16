@@ -322,9 +322,9 @@ function SaveMenu({ results, pure }) {
       <div style={{ position: "absolute", right: 0, top: "110%", zIndex: 40, minWidth: 180,
         background: "var(--surface)", border: "1px solid var(--line2)", borderRadius: 10,
         boxShadow: "0 8px 22px rgba(28,25,23,0.16)", padding: 5 }}>
-          {[["Copy share link", () => {copyLink();setOpen(false);}],
-        ["Export CSV", () => {exportCsv(results, pure);setOpen(false);}],
-        ["Print / save PDF", () => {window.print();setOpen(false);}]].map(([lbl, fn]) =>
+          {[["Copy share link", () => {track("share_copied");copyLink();setOpen(false);}],
+        ["Export CSV", () => {track("export_csv");exportCsv(results, pure);setOpen(false);}],
+        ["Print / save PDF", () => {track("print_results");window.print();setOpen(false);}]].map(([lbl, fn]) =>
         <button key={lbl} className="btn sm ghost" style={{ display: "block", width: "100%", textAlign: "left", border: "none" }}
         onClick={fn}>{lbl}</button>
         )}
@@ -337,10 +337,106 @@ function SaveMenu({ results, pure }) {
 /* ---- Apply Plan (portfolio) ---- */
 
 const PORTFOLIO_BUCKETS = [
-  { key: "safeties", title: "Safeties",  sub: "Likely admits — anchor your list here.", tier: "safety" },
-  { key: "targets",  title: "Targets",   sub: "Your numbers are at or near the median.", tier: "target" },
-  { key: "reaches",  title: "Reaches",   sub: "Below their medians, but worth the shot.", tier: "reach"  },
+  { key: "safeties",  title: "Safeties",  sub: "Likely admits — anchor your list here.", tier: "safety" },
+  { key: "targets",   title: "Targets",   sub: "Your numbers are at or near the median.", tier: "target" },
+  { key: "reaches",   title: "Reaches",   sub: "Below their medians, but worth the shot.", tier: "reach"  },
+  { key: "longshots", title: "Long shots", sub: "Below the 25th percentile — a flier, not a plan.", tier: "hard" },
 ];
+
+const STRATEGY_OPTIONS = [
+  { k: "aggressive", label: "Aggressive" },
+  { k: "balanced",   label: "Balanced" },
+  { k: "safe",       label: "Safe" },
+];
+const STRATEGY_BLURB = {
+  aggressive: "Fewer safeties, more reaches — for applicants who'd rather re-apply than under-shoot.",
+  balanced:   "A standard spread: a couple of safeties, a core of targets, a few reaches.",
+  safe:       "A wider safety net and fewer reaches — for a cost- or certainty-first cycle.",
+};
+
+/* Risk posture + opt-in long shots. Changing either re-fetches the slate. */
+function ApplyControls({ strategy, includeHard, onApplyChange }) {
+  return (
+    <div className="apply-controls">
+      <div className="ac-row">
+        <span className="ac-label">List strategy</span>
+        <Seg options={STRATEGY_OPTIONS} value={strategy}
+          onChange={(k) => onApplyChange({ strategy: k })} />
+        <label className="checkbox-row" style={{ fontSize: 13, gap: 5, marginLeft: "auto" }}
+          title="Surface a couple of hard reaches below the 25th percentile">
+          <input type="checkbox" checked={!!includeHard}
+            onChange={(e) => onApplyChange({ includeHard: e.target.checked })} />
+          include long shots
+        </label>
+      </div>
+      <p className="ts-sub" style={{ margin: 0 }}>{STRATEGY_BLURB[strategy] || ""}</p>
+    </div>
+  );
+}
+
+/* Application calendar — generic ABA cycle rhythm, with a profile-aware nudge. */
+function ApplyTimeline({ profile }) {
+  const steps = [];
+  if (profile.lsat == null) {
+    steps.push(["Lock your LSAT first",
+      "Most files can't be read without a score on record. Get one before you build around these schools."]);
+  }
+  steps.push(
+    ["Submit early (Sep–Nov)",
+     "Almost all ABA schools admit on a rolling basis — the same file read in the fall beats February for both admission and aid."],
+    ["Hit priority & scholarship deadlines (Nov–Jan)",
+     "These fall well before the final regular deadline (Feb–Mar). Most merit money is committed by the late deadline."],
+    ["Compare offers (Jan–Apr)",
+     "Line up admit and aid letters side by side as they arrive — this is your negotiation window (see Scholarship strategy)."],
+    ["Seat deposits (Apr–Jun)",
+     "Schools hold your spot with a deposit (often $250–$1,000). Budget for one or two while you finalize."],
+  );
+  return (
+    <section className="tier-section">
+      <div className="ts-head"><h2>Timeline</h2></div>
+      <p className="ts-sub">When to do what — the cycle rewards moving early.</p>
+      <ol className="apply-timeline">
+        {steps.map(([t, d]) => (
+          <li key={t}><strong>{t}.</strong> {d}</li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
+/* Scholarship strategy — where merit aid is winnable + how to negotiate it.
+   Leverage list is derived from the slate: schools where the applicant is at or
+   above median (they pay to pull their numbers up). */
+function ScholarshipStrategy({ portfolio, profile }) {
+  const pool = [...(portfolio.safeties || []), ...(portfolio.targets || [])];
+  const atOrAbove = (m) => profile.lsat != null
+    ? (m.l50 != null && profile.lsat >= m.l50)
+    : (m.scholarship != null && m.scholarship >= 70);
+  const leverage = pool.filter(atOrAbove)
+    .sort((a, b) => (b.scholarship || 0) - (a.scholarship || 0))
+    .slice(0, 3);
+  return (
+    <section className="tier-section">
+      <div className="ts-head"><h2>Scholarship strategy</h2></div>
+      <p className="ts-sub">Merit aid is negotiable. Plan for it like part of the application.</p>
+      {leverage.length > 0 && (
+        <p style={{ marginTop: 4 }}>
+          <strong>Most winnable here:</strong>{" "}
+          {leverage.map((m) => m.name).join(", ")} — you're at or above their median,
+          so they have a reason to pay to enroll you.
+        </p>
+      )}
+      <ul className="apply-tips">
+        <li><strong>Use competing offers.</strong> A bigger award from a peer school is leverage —
+          ask another to match it in writing. Schools reconsider; there's no penalty for asking.</li>
+        <li><strong>Aim safeties and strong targets for merit, not just admission.</strong>{" "}
+          That's where you're most likely to land a half-to-full ride.</li>
+        <li><strong>Request fee waivers.</strong> Via LSAC, law fairs, or the school directly — and
+          CAS fee waivers exist for need. Don't let app fees cap how many schools you reach.</li>
+      </ul>
+    </section>
+  );
+}
 
 function PortfolioBucketCard({ m, onOpen }) {
   const t = TIERS[m.tier] || TIERS.target;
@@ -371,7 +467,7 @@ function PortfolioBucketCard({ m, onOpen }) {
   );
 }
 
-function PortfolioView({ portfolio, onOpen }) {
+function PortfolioView({ portfolio, profile, strategy, includeHard, onApplyChange, onOpen }) {
   if (!portfolio) {
     return (
       <div className="tier-section">
@@ -380,10 +476,22 @@ function PortfolioView({ portfolio, onOpen }) {
     );
   }
 
+  const adaptNotes = portfolio.adaptNotes || [];
+
   return (
     <div>
+      <ApplyControls strategy={strategy} includeHard={includeHard} onApplyChange={onApplyChange} />
+
+      {adaptNotes.length > 0 &&
+        <div className="apply-notes">
+          {adaptNotes.map((n, i) => <p key={i} className="apply-note">{n}</p>)}
+        </div>
+      }
+
       {PORTFOLIO_BUCKETS.map(({ key, title, sub, tier }) => {
         const entries = portfolio[key] || [];
+        // Long shots only appear when opted in; other buckets always show.
+        if (key === "longshots" && !includeHard) return null;
         return (
           <section className="tier-section" key={key}>
             <div className="ts-head">
@@ -399,14 +507,18 @@ function PortfolioView({ portfolio, onOpen }) {
           </section>
         );
       })}
-      <p className="muted" style={{ fontSize: 12, marginTop: 20 }}>
-        Slate sizes (2 safeties / 4 targets / 3 reaches) are a guideline. Apply to as many as your time and budget allow.
+
+      <p className="muted" style={{ fontSize: 12, margin: "16px 0 8px" }}>
+        Slate sizes are a starting point, not a rule — apply to as many as your time and budget allow.
       </p>
+
+      <ApplyTimeline profile={profile} />
+      <ScholarshipStrategy portfolio={portfolio} profile={profile} />
     </div>
   );
 }
 
-function ResultsScreen({ results, plan, portfolio, profile, whatIf, setWhatIf, onOpen, onEditProfile, compareIds, onToggleCompare, onClearCompare, onCompare, rview, setRview, tweakOpen, onTweakToggle }) {
+function ResultsScreen({ results, plan, portfolio, profile, whatIf, setWhatIf, onOpen, onEditProfile, compareIds, onToggleCompare, onClearCompare, onCompare, rview, setRview, tweakOpen, onTweakToggle, applyStrategy, includeHard, onApplyChange }) {
   const [pure, setPure] = React.useState(false);
   const [whatIfOpen, setWhatIfOpen] = React.useState(false);
   const goalLabel = GOAL_LABEL[profile.goal] || "BigLaw";
@@ -445,7 +557,7 @@ function ResultsScreen({ results, plan, portfolio, profile, whatIf, setWhatIf, o
       </div>
 
       <div className="results-toolbar">
-        <Seg options={viewOpts} value={view} onChange={setRview} />
+        <Seg options={viewOpts} value={view} onChange={(k) => {setRview(k);track("view_changed", k);if (k === "portfolio") track("apply_plan_opened");}} />
         <span className="spacer"></span>
         {onTweakToggle &&
           <button className={`twp-trigger${tweakOpen ? " active" : ""}`}
@@ -469,7 +581,7 @@ function ResultsScreen({ results, plan, portfolio, profile, whatIf, setWhatIf, o
         )}
         <label className="checkbox-row" style={{ fontSize: 13, gap: 5 }}
         title="Re-rank as if getting in weren't a factor">
-          <input type="checkbox" checked={pure} onChange={(e) => setPure(e.target.checked)} />
+          <input type="checkbox" checked={pure} onChange={(e) => {setPure(e.target.checked);track("pure_fit_toggled", e.target.checked ? "on" : "off");}} />
           ignore admissibility
           <InfoTip text="Re-ranks by fit alone, ignoring your odds of admission. Tiers still show." />
         </label>
@@ -488,7 +600,9 @@ function ResultsScreen({ results, plan, portfolio, profile, whatIf, setWhatIf, o
       <TransfersView plan={plan} onOpen={onOpen} goalLabel={goalLabel} />
       }
       {view === "portfolio" &&
-      <PortfolioView portfolio={portfolio} onOpen={onOpen} />
+      <PortfolioView portfolio={portfolio} profile={profile} goalLabel={goalLabel}
+      strategy={applyStrategy} includeHard={includeHard} onApplyChange={onApplyChange}
+      onOpen={onOpen} />
       }
 
       {compareIds.length > 0 &&

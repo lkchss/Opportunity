@@ -6,15 +6,15 @@
   --paper: #fbf9f4;
   --surface: #fffdf8;
   --ink: #1c1917;
-  --soft: #7d7567;
-  --faint: #a39a89;
+  --soft: #635c4f;   /* WCAG AA on cream backgrounds (was #7d7567, 4.3:1) */
+  --faint: #6b6456;  /* WCAG AA (was #a39a89, 2.7:1) */
   --line: #e8e2d5;
   --line2: #d3cab7;
 
-  --accent: #a3791a;
+  --accent: #8a6515;       /* AA as text + as button bg w/ light text (was #a3791a) */
   --accent-deep: #7d5c12;
   --accent-soft: #f3ead0;
-  --amber: #a3791a;
+  --amber: #8a6515;
   --amber-soft: #f3ead0;
   --amber-border: #e5d6a9;
   --accent-contrast: #f5f1e6;
@@ -52,6 +52,7 @@ h2 { font-size: 24px; }
 h3 { font-size: 19px; }
 .mono { font-family: var(--mono); font-size: 12px; color: var(--soft); }
 .muted { color: var(--soft); }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 .num { font-variant-numeric: tabular-nums; }
 
 /* ---------- shell ---------- */
@@ -191,7 +192,7 @@ input[type="range"]::-moz-range-thumb {
 }
 .intake-grid > section { padding: calc(var(--card-pad) + 6px); }
 .intake-grid > section + section { border-left: 1px solid var(--line); background: #faf7ee; }
-.intake-grid h3 { margin-bottom: 4px; }
+.intake-grid h2 { font-size: 19px; margin-bottom: 4px; }
 .intake-grid .sec-sub { font-size: 13px; color: var(--soft); margin: 0 0 18px; }
 .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .weights { display: flex; flex-direction: column; gap: 20px; }
@@ -329,6 +330,28 @@ input[type="range"]::-moz-range-thumb {
 .tier-section .ts-head .count { font-size: 13px; color: var(--soft); }
 .tier-section .ts-sub { margin: 2px 0 14px 21px; font-size: 13.5px; color: var(--soft); }
 
+/* ---- Apply plan controls + sections ---- */
+.apply-controls {
+  display: flex; flex-direction: column; gap: 8px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+  padding: 14px 16px; margin-bottom: 8px;
+}
+.apply-controls .ac-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.apply-controls .ac-label { font-size: 13px; font-weight: 600; color: var(--ink); }
+.apply-controls .ts-sub { margin-left: 0; }
+
+.apply-notes { margin: 12px 0 4px; display: flex; flex-direction: column; gap: 8px; }
+.apply-note {
+  margin: 0; padding: 10px 13px; font-size: 13px; line-height: 1.45;
+  background: var(--bg2, #f3f0ea); border-left: 3px solid var(--accent);
+  border-radius: 0 8px 8px 0; color: var(--ink);
+}
+
+.apply-timeline { margin: 8px 0 0 4px; padding-left: 20px; display: flex; flex-direction: column; gap: 10px; }
+.apply-timeline li { font-size: 13.5px; line-height: 1.5; color: var(--ink); padding-left: 4px; }
+.apply-tips { margin: 10px 0 0; padding-left: 20px; display: flex; flex-direction: column; gap: 9px; }
+.apply-tips li { font-size: 13.5px; line-height: 1.5; color: var(--ink); }
+
 .school-card {
   display: flex; align-items: center; gap: 22px;
   background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
@@ -446,7 +469,7 @@ input[type="range"]::-moz-range-thumb {
 
 .story-cols { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 26px; }
 .story-col { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: var(--card-pad); display: flex; flex-direction: column; gap: 12px; }
-.story-col h3 { font-size: 18px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+.story-col h2 { font-size: 18px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
 .big-num { font-family: var(--display); font-size: 27px; font-weight: 700; }
 
 /* detail: range lines, verdict, ledgers */
@@ -561,7 +584,90 @@ input[type="range"]::-moz-range-thumb {
   box-shadow: 0 6px 18px rgba(28,25,23,0.3);
 }
 
+/* ---------- responsive ---------- */
+
+/* Tablet / small laptop: collapse the multi-column layouts to single column. */
 @media (max-width: 900px) {
+  .shell { padding: 0 22px 72px; }
   .intake-grid, .detail-hero, .story-cols { grid-template-columns: 1fr; }
+  /* When the intake panels stack, the divider moves from the side to the top. */
+  .intake-grid > section + section { border-left: none; border-top: 1px solid var(--line); }
   .results-head { flex-direction: column; align-items: flex-start; }
+  .stat-grid { grid-template-columns: repeat(3, 1fr); }
+  .score-bars { grid-template-columns: repeat(2, 1fr); }
+  h1 { font-size: 32px; }
+  .detail-head h1 { font-size: 30px; }
+  .detail-hero { gap: 22px; }
+}
+
+/* Phone: the heavy restructuring pass. */
+@media (max-width: 600px) {
+  .shell { padding: 0 16px 64px; }
+
+  body { font-size: 14px; }
+  h1 { font-size: 26px; }
+  h2 { font-size: 21px; }
+  .intake-head { padding: 28px 0 8px; }
+  .intake-head p { font-size: 14.5px; }
+
+  /* 16px inputs stop iOS from auto-zooming on focus. */
+  input[type="text"], input[type="number"], select, textarea { font-size: 16px; }
+
+  /* Masthead wraps; the nav drops to its own full-width row. */
+  .masthead { flex-wrap: wrap; gap: 6px 16px; padding: 16px 0 12px; }
+  .masthead nav { margin-left: 0; width: 100%; gap: 20px; }
+  .masthead .tagline { display: none; }
+
+  /* Single-column form fields. */
+  .intake-grid > section { padding: 16px; }
+  .field-grid { grid-template-columns: 1fr; gap: 14px; }
+
+  /* Profile recap scrolls sideways instead of overflowing the viewport. */
+  .results-head { gap: 16px; }
+  .profile-card { width: 100%; overflow-x: auto; }
+
+  /* School cards: the name keeps row 1 next to the ring (the content div's
+     inline flex:1 fills it); forcing .sc-stats to a full-width basis wraps the
+     stats — and the compare button after them — onto their own rows below. */
+  .school-card { flex-wrap: wrap; gap: 12px 16px; }
+  .school-card .sc-stats { flex: 1 0 100%; gap: 22px; justify-content: flex-start; }
+  .sc-stat { min-width: 0; text-align: left; }
+
+  /* Detail screen: stats 2-up, bars single column, header stacks. */
+  .stat-grid { grid-template-columns: repeat(2, 1fr); }
+  .score-bars { grid-template-columns: 1fr; }
+  .ms-block { width: 100%; }
+  .detail-head { flex-direction: column; }
+  .detail-head .head-right { align-items: flex-start; }
+  .detail-head h1 { font-size: 26px; }
+
+  /* Tab strips scroll horizontally rather than wrapping awkwardly. */
+  .tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .tabs::-webkit-scrollbar { display: none; }
+
+  /* Compare tray spans the viewport and wraps its contents. */
+  .compare-tray {
+    left: 12px; right: 12px; transform: none; max-width: none;
+    flex-wrap: wrap; gap: 10px; padding: 12px 14px;
+  }
+  .compare-tray .names { max-width: 100%; white-space: normal; }
+
+  /* Larger tap targets for touch. */
+  .btn { padding: 9px 16px; }
+  .btn.sm { padding: 7px 12px; }
+  .nav-link { padding-bottom: 4px; }
+  .seg button { padding: 7px 14px; }
+
+  /* Modals and dense detail use more of the small screen. */
+  .modal-backdrop { padding: 24px 12px; }
+  .modal { padding: 20px 18px; }
+  .raw-detail { grid-template-columns: 1fr; }
+  .footer-note { flex-direction: column; gap: 8px; }
+}
+
+/* Very small phones. */
+@media (max-width: 380px) {
+  h1 { font-size: 23px; }
+  .school-card .sc-stats { gap: 12px; }
+  .masthead nav { gap: 16px; }
 }

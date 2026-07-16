@@ -8,6 +8,7 @@ function WSlider({ label, value, onChange, hint, help }) {
         <span className="val">{Math.round(value)}/10</span>
       </div>
       <input type="range" min="0" max="10" step="0.1" value={value} style={{ "--p": `${value * 10}%` }}
+      aria-label={`${label} importance, 0 to 10`}
       onChange={(e) => onChange(Number(e.target.value))} />
     </div>);
 
@@ -27,7 +28,8 @@ function PracticeStates({ value, onChange }) {
       <label>Where you want to practice {value.length > 1 && "(weight %)"}</label>
       {value.map((row, i) =>
       <div className="weighted-row" key={i}>
-          <select value={row.state} onChange={(e) => update(i, { state: e.target.value })}>
+          <select value={row.state} aria-label={`Practice state ${i + 1}`}
+            onChange={(e) => update(i, { state: e.target.value })}>
             <option value="">Select state</option>
             {STATES.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
@@ -57,7 +59,8 @@ function InstateList({ value, onChange }) {
       </label>
       {value.map((st, i) =>
       <div className="weighted-row" key={i}>
-          <select value={st} onChange={(e) => update(i, e.target.value)}>
+          <select value={st} aria-label={`In-state tuition state ${i + 1}`}
+            onChange={(e) => update(i, e.target.value)}>
             <option value="">Select state</option>
             {STATES.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
@@ -124,7 +127,7 @@ function ProfileScreen({ form, setForm, onSubmit, loading }) {
 
       <div className="intake-grid">
         <section>
-          <h3>Who you are</h3>
+          <h2>Who you are</h2>
           <p className="sec-sub"></p>
 
           <div className="field-grid">
@@ -147,7 +150,7 @@ function ProfileScreen({ form, setForm, onSubmit, loading }) {
 
           <div className="field" style={{ marginTop: 18 }}>
             <label>Career goal</label>
-            <select value={form.goal} onChange={(e) => set("goal", e.target.value)}>
+            <select value={form.goal} aria-label="Career goal" onChange={(e) => set("goal", e.target.value)}>
               {GOALS.map((g) => <option key={g} value={g}>{g}</option>)}
             </select>
           </div>
@@ -157,7 +160,7 @@ function ProfileScreen({ form, setForm, onSubmit, loading }) {
         </section>
 
         <section>
-          <h3>What matters to you</h3>
+          <h2>What matters to you</h2>
           <p className="sec-sub">These set the weights in your ranking.</p>
           <div className="weights">
             <WSlider label="Career fit" value={form.careerW} onChange={(v) => set("careerW", v)}

@@ -92,7 +92,7 @@ function CompareScreen({ schools, profile, onBack, onRemove }) {
         <table className="compare-table">
           <thead>
             <tr>
-              <th className="metric-col"></th>
+              <th className="metric-col"><span className="sr-only">Metric</span></th>
               {schools.map((m) => (
                 <th key={m.id}>
                   <div className="nm">{m.name}</div>

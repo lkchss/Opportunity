@@ -1144,14 +1144,38 @@ def transfer_up_plan(
     return {"launchpads": launchpads, "targets": targets}
 
 
-def build_portfolio(ranked: list[dict]) -> dict:
+_PORTFOLIO_STRATEGIES: dict[str, dict[str, int]] = {
+    # safety / target / reach quotas per risk posture. Targets stay the anchor;
+    # the knob trades safeties against reaches.
+    "safe":       {"safety": 3, "target": 4, "reach": 2},
+    "balanced":   {"safety": 2, "target": 4, "reach": 3},
+    "aggressive": {"safety": 1, "target": 4, "reach": 4},
+}
+_HARD_LONGSHOT_QUOTA = 2   # how many hard reaches surface when include_hard is on
+
+
+def build_portfolio(
+    ranked: list[dict],
+    profile: Optional[dict] = None,
+    strategy: str = "balanced",
+    include_hard: bool = False,
+) -> dict:
     """
     Build a deterministic application portfolio from the already-ranked school list.
 
     Selection rules
     ---------------
-    Targets: 2 safeties + 4 targets + 3 reaches (hard reaches are not included).
-    Counts shrink gracefully when a tier contains fewer schools than the quota.
+    Base quotas come from ``strategy`` (safe 3/4/2, balanced 2/4/3, aggressive
+    1/4/4); ``balanced`` reproduces the historical 2/4/3 slate exactly. Counts
+    shrink gracefully when a tier contains fewer schools than the quota.
+
+    Auto-adaptation: the base quota is nudged from profile signals (e.g. a highly
+    cost-sensitive applicant gets one extra safety in place of a reach). Every
+    adjustment is recorded in ``adapt_notes`` so the UI can explain it.
+
+    When ``include_hard`` is set, up to two hard-reach "long shots" are returned
+    in a separate ``longshots`` bucket (still state-capped); they are excluded by
+    default because they are below the school's 25th percentiles.
 
     Within each bucket the algorithm takes the composite-ranked top of that tier
     subject to two diversification constraints:
@@ -1179,9 +1203,33 @@ def build_portfolio(ranked: list[dict]) -> dict:
     Returns {"safeties": [...], "targets": [...], "reaches": [...]} — any bucket
     may be an empty list when the tier has no schools at all.
     """
-    # Buckets we care about (hard reaches excluded by policy)
-    QUOTA: dict[str, int] = {"safety": 2, "target": 4, "reach": 3}
+    # Base quotas from the chosen risk posture (defaults to balanced 2/4/3).
+    QUOTA: dict[str, int] = dict(
+        _PORTFOLIO_STRATEGIES.get(strategy, _PORTFOLIO_STRATEGIES["balanced"]))
     STATE_CAP = 2
+
+    # ── Auto-adaptation: nudge the base quota from profile signals ───────────
+    adapt_notes: list[str] = []
+    p = profile or {}
+
+    # Highly cost-sensitive applicants carry more debt risk, so widen the safety
+    # net by one at the expense of a reach. A safety with merit aid is the
+    # cheapest insurance against a bad-money outcome.
+    cost_slider = int(p.get("scholarship", 5) or 0)
+    low_means = (p.get("income_bracket") == "under_65k"
+                 and float(p.get("cash_available") or 0) < 20_000)
+    if (cost_slider >= 8 or low_means) and QUOTA["reach"] > 1:
+        QUOTA["safety"] += 1
+        QUOTA["reach"]  -= 1
+        adapt_notes.append(
+            "Added a safety in place of a reach — you flagged cost as critical, "
+            "and a likely-admit with merit aid is your debt insurance.")
+
+    # No LSAT yet: reach calls are guesswork without a real score.
+    if profile is not None and p.get("lsat") in (None, "", 0):
+        adapt_notes.append(
+            "Add an LSAT score for sharper reach/target calls — this slate is "
+            "built from GPA and preferences alone.")
 
     # Score-name → label used in the reason line
     _SCORE_LABELS: dict[str, str] = {
@@ -1260,7 +1308,7 @@ def build_portfolio(ranked: list[dict]) -> dict:
         }
 
     # Partition ranked list by tier (preserving composite order)
-    by_tier: dict[str, list[dict]] = {"safety": [], "target": [], "reach": []}
+    by_tier: dict[str, list[dict]] = {"safety": [], "target": [], "reach": [], "hard reach": []}
     for s in ranked:
         t = s.get("admissibility_tier", "")
         if t in by_tier:
@@ -1273,11 +1321,21 @@ def build_portfolio(ranked: list[dict]) -> dict:
     targets = _pick_bucket(by_tier["target"], QUOTA["target"])
     reaches = _pick_bucket(by_tier["reach"], QUOTA["reach"])
 
-    return {
+    out = {
         "safeties": [_slate_entry(s) for s in safeties],
         "targets":  [_slate_entry(s) for s in targets],
         "reaches":  [_slate_entry(s) for s in reaches],
+        "strategy": strategy if strategy in _PORTFOLIO_STRATEGIES else "balanced",
+        "quota":    dict(QUOTA),
+        "adapt_notes": adapt_notes,
     }
+
+    # Optional "long shots": a couple of hard reaches, opt-in only.
+    if include_hard:
+        longshots = _pick_bucket(by_tier["hard reach"], _HARD_LONGSHOT_QUOTA)
+        out["longshots"] = [_slate_entry(s) for s in longshots]
+
+    return out
 
 
 def rank_schools(

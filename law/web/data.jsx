@@ -30,6 +30,27 @@ const GOAL_LABEL = {
 
 const wiki = (n) => "https://en.wikipedia.org/wiki/" + n.replace(/ /g, "_");
 
+/* Official school site. Falls back to a name-scoped web search when the record
+   has no website_url (only ~75/196 are populated), which reliably lands on the
+   school's own site as the top result rather than Wikipedia. */
+const schoolSite = (m) =>
+  (m && m.site) || ("https://www.google.com/search?q=" + encodeURIComponent((m && m.name || "") + " law school"));
+
+/* Anonymous usage ping — feature interactions only, never profile data.
+   Fire-and-forget: it must never block the UI or surface an error. The backend
+   drops anything not on its event allowlist. */
+function track(name, label) {
+  try {
+    const body = JSON.stringify(label ? { name, label } : { name });
+    fetch("/api/event", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body,
+      keepalive: true,
+    }).catch(() => {});
+  } catch (e) {/* analytics must never break the app */}
+}
+
 /* ---------------- formatters ---------------- */
 const fmtMoney = (n) => n == null ? "—" : "$" + Math.round(n).toLocaleString();
 const fmtMoneyK = (n) => n == null ? "—" : "$" + Math.round(n / 1000) + "k";
@@ -52,7 +73,7 @@ function incomeBracket(raw) {
   return "over_200k";
 }
 
-function buildPayload(form, lsatOverride, weightsOverride) {
+function buildPayload(form, lsatOverride, weightsOverride, applyOpts) {
   const raw = lsatOverride !== undefined ? lsatOverride : form.lsat;
   const lsat = Number(raw);
   // A blank/zero/garbage LSAT must never reach the matcher as a real score.
@@ -76,6 +97,11 @@ function buildPayload(form, lsatOverride, weightsOverride) {
   // null/undefined → key omitted → byte-identical backend baseline.
   const w = weightsOverride !== undefined ? weightsOverride : (form.weights || null);
   if (w != null) payload.weights = w;
+  // Optional apply-plan controls (risk posture + opt-in long shots). Omitting
+  // them reproduces the historical balanced 2/4/3 slate.
+  const opts = applyOpts || {};
+  if (opts.strategy) payload.apply_strategy = opts.strategy;
+  if (opts.includeHard) payload.include_hard = true;
   return payload;
 }
 
@@ -86,6 +112,7 @@ function adaptRaw(s) {
   const size = s.class_size_1l;
   return {
     id: s.id, name: s.name, loc: s.location, state: s.state,
+    site: s.website_url || null,
     isPublic: !!s.is_public,
     rank: s.usnwr_rank_2026 == null ? 999 : s.usnwr_rank_2026,
     accept: s.acceptance_rate,
@@ -192,11 +219,16 @@ function adaptMatchResponse(json, goal) {
     }).filter(Boolean);
   }
   const portfolio = {
-    safeties: resolveSlate(rawPortfolio.safeties),
-    targets:  resolveSlate(rawPortfolio.targets),
-    reaches:  resolveSlate(rawPortfolio.reaches),
+    safeties:  resolveSlate(rawPortfolio.safeties),
+    targets:   resolveSlate(rawPortfolio.targets),
+    reaches:   resolveSlate(rawPortfolio.reaches),
+    longshots: resolveSlate(rawPortfolio.longshots),
+    strategy:  rawPortfolio.strategy || "balanced",
+    quota:     rawPortfolio.quota || null,
+    adaptNotes: rawPortfolio.adapt_notes || [],
   };
-  const totalSlate = portfolio.safeties.length + portfolio.targets.length + portfolio.reaches.length;
+  const totalSlate = portfolio.safeties.length + portfolio.targets.length +
+    portfolio.reaches.length + portfolio.longshots.length;
 
   return {
     schools,
@@ -214,7 +246,7 @@ function decodeShare(hash) {
 }
 
 Object.assign(window, {
-  STATES, GOALS, TIERS, TIER_ORDER, TIER_FROM_API, GOAL_KEY, GOAL_LABEL, wiki,
+  STATES, GOALS, TIERS, TIER_ORDER, TIER_FROM_API, GOAL_KEY, GOAL_LABEL, wiki, schoolSite, track,
   fmtMoney, fmtMoneyK, fmtPct, fmtPct1, fmtRank, fmtGpa, clamp,
   incomeBracket, buildPayload, adaptRaw, adaptMatched, adaptMatchResponse,
   encodeShare, decodeShare,

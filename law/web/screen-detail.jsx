@@ -123,7 +123,7 @@ function DetailScreen({ m, profile, onBack }) {
             </div>
             <div className="ms-labels"><span>0</span><span>match score</span><span>100</span></div>
           </div>
-          <a className="mono" href={wiki(m.name)} target="_blank" rel="noreferrer">More about the school ↗</a>
+          <a className="mono" href={schoolSite(m)} target="_blank" rel="noreferrer" onClick={() => track("school_site_clicked")}>More about the school ↗</a>
         </div>
       </div>
 
@@ -150,8 +150,8 @@ function DetailScreen({ m, profile, onBack }) {
 
       <div className="story-cols">
         <div className="story-col">
-          <h3>Will you get in?
-            <InfoTip text="Tier reflects how your numbers sit against the class 25/50/75. Not a prediction of admission." /></h3>
+          <h2>Will you get in?
+            <InfoTip text="Tier reflects how your numbers sit against the class 25/50/75. Not a prediction of admission." /></h2>
           <RangeLine label="LSAT" lo={m.l25} mid={m.l50} hi={m.l75} you={userLsat} />
           <RangeLine label="GPA" lo={m.g25} mid={m.g50} hi={m.g75} you={profile.gpa}
             fmt={(v) => Number(v).toFixed(2)} />
@@ -169,8 +169,8 @@ function DetailScreen({ m, profile, onBack }) {
         </div>
 
         <div className="story-col">
-          <h3>Will you get the job?
-            <InfoTip text="Share of the graduating class landing each outcome. Your goal row is highlighted." /></h3>
+          <h2>Will you get the job?
+            <InfoTip text="Share of the graduating class landing each outcome. Your goal row is highlighted." /></h2>
           <div className="kv">
             <span className={`k ${goalKey === "biglaw" ? "goal" : ""}`}>BigLaw</span>
             <span className={`v ${goalKey === "biglaw" ? "goal" : ""}`}>{fmtPct(m.biglaw)}</span>
@@ -191,8 +191,8 @@ function DetailScreen({ m, profile, onBack }) {
         </div>
 
         <div className="story-col">
-          <h3>Can you afford it?
-            <InfoTip text="Blends the school's aid grid, your numbers, your savings, and typical pay for your goal. Always negotiate." /></h3>
+          <h2>Can you afford it?
+            <InfoTip text="Blends the school's aid grid, your numbers, your savings, and typical pay for your goal. Always negotiate." /></h2>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
             <div><div className="mono">est. cost after aid</div><div className="big-num">{fmtMoneyK(m.netDebt)}</div></div>
             <div style={{ textAlign: "right" }}><div className="mono">starting salary</div><div className="big-num">{fmtMoneyK(m.salary)}</div></div>

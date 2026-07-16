@@ -59,7 +59,7 @@ function RawDetail({ s, schools }) {
         {row("Real grad debt · earnings @4yr", `${fmtMoneyK(s.scDebt)} · ${fmtMoneyK(s.scEarn)}`)}
       </div>
       <div className="mono" style={{ gridColumn: "1 / -1" }}>
-        <a href={wiki(s.name)} target="_blank" rel="noreferrer">About the school ↗</a>
+        <a href={schoolSite(s)} target="_blank" rel="noreferrer" onClick={() => track("school_site_clicked")}>About the school ↗</a>
       </div>
     </div>);
 
@@ -101,8 +101,10 @@ function RankingsScreen({ schools, error, onRetry }) {
         </div>
         <div style={{ display: "flex", gap: 8, flex: "none" }}>
           <input type="text" placeholder="Search school or city…" value={q} style={{ width: 220 }}
+          aria-label="Search schools by name or city"
           onChange={(e) => setQ(e.target.value)} />
-          <select value={stateFilter} onChange={(e) => setStateFilter(e.target.value)}>
+          <select value={stateFilter} aria-label="Filter by state"
+            onChange={(e) => setStateFilter(e.target.value)}>
             <option value="">All states</option>
             {STATES.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
@@ -134,7 +136,7 @@ function RankingsScreen({ schools, error, onRetry }) {
           <tbody>
             {list.map((s) =>
             <React.Fragment key={s.id}>
-                <tr tabIndex={0} aria-expanded={openId === s.id}
+                <tr tabIndex={0}
               onClick={() => setOpenId(openId === s.id ? null : s.id)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {

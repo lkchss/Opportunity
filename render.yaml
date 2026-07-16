@@ -4,7 +4,9 @@ services:
     runtime: python
     plan: free
     buildCommand: pip install -r requirements-law.txt
-    startCommand: gunicorn law.server:app --bind 0.0.0.0:$PORT
+    # --workers 1 keeps the in-memory usage counters (GET /stats) authoritative;
+    # the per-event stdout log is the durable record either way. Fine on free tier.
+    startCommand: gunicorn law.server:app --workers 1 --bind 0.0.0.0:$PORT
     envVars:
       # Shared site password — set this value in the Render dashboard at deploy
       # time (sync:false means Render will prompt rather than read it from here,
