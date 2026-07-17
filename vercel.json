@@ -1,8 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
-  "buildCommand": "echo 'no build step — Flask serves everything via the api/index function'",
-  "outputDirectory": ".",
   "functions": {
     "api/index.py": {
       "includeFiles": "law/**"
