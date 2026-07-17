@@ -1,6 +1,7 @@
 services:
   - type: web
-    name: law-school-matcher
+    # Service name drives the free URL: opportunity-law.onrender.com
+    name: opportunity-law
     runtime: python
     plan: free
     buildCommand: pip install -r requirements-law.txt
