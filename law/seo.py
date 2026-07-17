@@ -146,7 +146,7 @@ def _layout(*, title: str, description: str, canonical: str, base_url: str,
         "<meta charset=\"utf-8\">"
         "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
         "<meta name=\"theme-color\" content=\"#2f7a50\">"
-        "<link rel=\"icon\" href=\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232f7a50'/%3E%3Ctext x='16' y='23' font-family='Georgia,serif' font-size='20' font-weight='700' text-anchor='middle' fill='%23faf9f7'%3EO%3C/text%3E%3C/svg%3E\">"
+        "<link rel=\"icon\" href=\"data:,\">"
         f"<title>{t}</title>"
         f"<meta name=\"description\" content=\"{d}\">"
         f"<link rel=\"canonical\" href=\"{_esc(abs_url)}\">"
