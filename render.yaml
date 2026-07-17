@@ -8,10 +8,10 @@ services:
     # the per-event stdout log is the durable record either way. Fine on free tier.
     startCommand: gunicorn law.server:app --workers 1 --bind 0.0.0.0:$PORT
     envVars:
-      # Shared site password — set this value in the Render dashboard at deploy
-      # time (sync:false means Render will prompt rather than read it from here,
-      # so the password never lands in the repo).
-      - key: APP_PASSWORD
+      # SITE_BASE_URL (optional) — set to the production origin in the Render
+      # dashboard so SEO canonical/OG/sitemap URLs are absolute. If unset, the
+      # app derives it from the request (honoring X-Forwarded-Proto).
+      - key: SITE_BASE_URL
         sync: false
       - key: PYTHON_VERSION
         value: 3.12.7

@@ -4,7 +4,6 @@ Serves the static frontend in ``law/web`` and exposes a single JSON endpoint
 that runs the matching algorithm against a posted profile.
 """
 
-import hmac
 import math
 import os
 from html import escape as html_escape
@@ -17,11 +16,6 @@ from law.data_loader import DataValidationError, load_law_schools
 from law.matcher import rank_schools, transfer_up_plan, build_portfolio, _parse_user_weights
 
 WEB_DIR = Path(__file__).parent / "web"
-
-# Single shared password (HTTP Basic Auth). Set APP_PASSWORD in the deploy
-# environment to gate the whole site; leave it unset for open local dev. The
-# browser supplies a username we ignore — only the password is checked.
-_APP_PASSWORD = os.environ.get("APP_PASSWORD")
 
 # Radar axis order — must match SCORE_NAMES on the frontend.
 _RADAR_KEYS = [
@@ -43,10 +37,11 @@ except (FileNotFoundError, DataValidationError) as exc:  # pragma: no cover
 
 
 def _is_public_path(path: str) -> bool:
-    """Public, crawlable marketing surface — never behind the site password.
+    """The crawlable marketing/SEO surface — safe to cache at the edge.
 
-    The SEO landing pages are useless if gated (search engines can't read them),
-    so they stay open even when APP_PASSWORD gates the matcher app itself.
+    These pages are static, idempotent, and shared across all visitors, so they
+    get a public Cache-Control (see ``_headers``); the matcher app shell and the
+    API are excluded because they must always render fresh.
     """
     return (
         path == "/law-schools"
@@ -69,25 +64,6 @@ def _base_url() -> str:
     return f"{proto}://{request.host}"
 
 
-@app.before_request
-def _require_password() -> Response | None:
-    """Gate every route behind a single shared password when one is configured."""
-    if not _APP_PASSWORD:
-        return None  # no password set — open (local dev)
-    if _is_public_path(request.path):
-        return None  # marketing pages are always public
-    auth = request.authorization
-    if auth is not None and auth.password is not None and hmac.compare_digest(
-        auth.password, _APP_PASSWORD
-    ):
-        return None
-    return Response(
-        "Authentication required.",
-        401,
-        {"WWW-Authenticate": 'Basic realm="Law School Matcher"'},
-    )
-
-
 # Static asset extensions safe to cache at the edge for a while.
 _STATIC_EXT = (".css", ".jsx", ".js", ".svg", ".png", ".ico", ".woff", ".woff2")
 
@@ -98,7 +74,7 @@ def _headers(resp: Response) -> Response:
 
     Caching is only applied to the public, idempotent surfaces (SEO pages,
     sitemap/robots, static files) — never to the matcher app shell or the API,
-    which must stay fresh and (when gated) private.
+    which must always stay fresh.
     """
     resp.headers.setdefault("X-Content-Type-Options", "nosniff")
     resp.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
