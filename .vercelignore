@@ -10,7 +10,11 @@ law/data/raw/
 law/data/build_*.py
 law/data/*.xlsx
 render.yaml
-requirements.txt
+# Anchored to root: exclude ONLY the heavy dev/MVP requirements.txt.
+# An unanchored `requirements.txt` also matches api/requirements.txt, which
+# starves the Python builder of flask and stops the api/index function from
+# being built at all (every route then 404s with NOT_FOUND).
+/requirements.txt
 **/__pycache__/
 .pytest_cache/
 .git/
